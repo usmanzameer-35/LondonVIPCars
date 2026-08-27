@@ -1,0 +1,6 @@
+@LondonVIP.Api_HostAddress = http://localhost:5058
+
+GET {{LondonVIP.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

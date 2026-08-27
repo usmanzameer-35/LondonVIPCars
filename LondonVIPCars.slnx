@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LondonVIP.Api/LondonVIP.Api.csproj" />
+    <Project Path="src/LondonVIP.Infrastructure/LondonVIP.Infrastructure.csproj" />
+    <Project Path="src/LondonVIP.Shared/LondonVIP.Shared.csproj" />
+    <Project Path="src/LondonVIP.Web/LondonVIP.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/LondonVIP.Tests/LondonVIP.Tests.csproj" />
+  </Folder>
+</Solution>
