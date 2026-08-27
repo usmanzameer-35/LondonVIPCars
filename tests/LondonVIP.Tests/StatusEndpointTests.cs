@@ -11,7 +11,7 @@ public class StatusEndpointTests
     [Fact]
     public async Task GetStatus_ReturnsOnlineServiceStatus()
     {
-        await using var app = LondonVIP.Api.Program.CreateApp([]);
+        await using var app = LondonVIP.Api.Program.CreateApp(["--environment", "Development"]);
         app.Urls.Add("http://127.0.0.1:0");
 
         await app.StartAsync();

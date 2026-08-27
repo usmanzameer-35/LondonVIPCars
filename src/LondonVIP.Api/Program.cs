@@ -1,3 +1,6 @@
+using LondonVIP.Infrastructure.Data;
+using Microsoft.EntityFrameworkCore;
+
 namespace LondonVIP.Api;
 
 public static class Program
@@ -12,6 +15,10 @@ public static class Program
         var builder = WebApplication.CreateBuilder(args);
 
         builder.Services.AddOpenApi();
+        builder.Services.AddDbContext<LondonVIPDbContext>(options =>
+            options.UseSqlServer(
+                builder.Configuration.GetConnectionString("DefaultConnection")
+                ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.")));
 
         var app = builder.Build();
 
