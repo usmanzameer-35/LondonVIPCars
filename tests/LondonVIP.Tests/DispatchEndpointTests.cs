@@ -1,0 +1,210 @@
+using System.Net;
+using System.Net.Http.Json;
+using LondonVIP.Infrastructure.Data;
+using LondonVIP.Infrastructure.Tenancy;
+using LondonVIP.Shared.Dispatch;
+using LondonVIP.Shared.Models;
+using LondonVIP.Tests.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace LondonVIP.Tests;
+
+public class DispatchEndpointTests
+{
+    [Fact]
+    public async Task DispatchList_ReturnsOnlyCurrentTenantOperationalBookings()
+    {
+        await WithDispatchDataAsync(async (host, data) =>
+        {
+            await AddBookingAsync(host, data, BookingStatus.Completed);
+            var other = await AddOtherTenantAsync(host);
+            var jobs = await host.Client.GetFromJsonAsync<List<DispatchBoardItemDto>>("/api/dispatch");
+
+            Assert.NotNull(jobs);
+            Assert.Contains(jobs, item => item.BookingId == data.Booking.Id);
+            Assert.DoesNotContain(jobs, item => item.Status is BookingStatus.Completed or BookingStatus.Cancelled);
+            Assert.DoesNotContain(jobs, item => item.BookingId == other.Booking.Id);
+        });
+    }
+
+    [Fact]
+    public async Task UnassignedList_ReturnsOnlyConfirmedBookingsWithoutDriver()
+    {
+        await WithDispatchDataAsync(async (host, data) =>
+        {
+            var assigned = await AddBookingAsync(host, data, BookingStatus.Assigned, data.ActiveDriver.Id);
+            var jobs = await host.Client.GetFromJsonAsync<List<DispatchBoardItemDto>>("/api/dispatch/unassigned");
+
+            var job = Assert.Single(jobs!);
+            Assert.Equal(data.Booking.Id, job.BookingId);
+            Assert.DoesNotContain(jobs!, item => item.BookingId == assigned.Id);
+        });
+    }
+
+    [Fact]
+    public async Task DriversList_ReturnsActiveCurrentTenantDriversWithVehicle()
+    {
+        await WithDispatchDataAsync(async (host, data) =>
+        {
+            await AddOtherTenantAsync(host);
+            var drivers = await host.Client.GetFromJsonAsync<List<DriverAvailabilityDto>>("/api/dispatch/drivers");
+
+            var driver = Assert.Single(drivers!);
+            Assert.Equal(data.ActiveDriver.Id, driver.DriverId);
+            Assert.Equal(data.Vehicle.RegistrationNumber, driver.RegistrationNumber);
+            Assert.DoesNotContain(drivers!, item => item.DriverId == data.InactiveDriver.Id);
+        });
+    }
+
+    [Fact]
+    public async Task AssignAndReassignDriver_UpdatesBookingAndStatus()
+    {
+        await WithDispatchDataAsync(async (host, data) =>
+        {
+            var second = await AddDriverAsync(host, data.CompanyId, true, null, "Second");
+            var firstResult = await PatchAsync(host.Client, $"/api/dispatch/{data.Booking.Id}/assign", new AssignDriverRequest { DriverId = data.ActiveDriver.Id });
+            Assert.Equal(HttpStatusCode.OK, firstResult.StatusCode);
+            var first = await firstResult.Content.ReadFromJsonAsync<DispatchBoardItemDto>();
+            Assert.Equal(BookingStatus.Assigned, first?.Status);
+            Assert.Equal(data.ActiveDriver.Id, first?.DriverId);
+
+            var secondResult = await PatchAsync(host.Client, $"/api/dispatch/{data.Booking.Id}/assign", new AssignDriverRequest { DriverId = second.Id });
+            Assert.Equal(HttpStatusCode.OK, secondResult.StatusCode);
+            var reassigned = await secondResult.Content.ReadFromJsonAsync<DispatchBoardItemDto>();
+            Assert.Equal(second.Id, reassigned?.DriverId);
+        });
+    }
+
+    [Fact]
+    public async Task UnassignDriver_ReturnsBookingToConfirmed()
+    {
+        await WithDispatchDataAsync(async (host, data) =>
+        {
+            using var assigned = await PatchAsync(host.Client, $"/api/dispatch/{data.Booking.Id}/assign", new AssignDriverRequest { DriverId = data.ActiveDriver.Id });
+            assigned.EnsureSuccessStatusCode();
+            using var response = await PatchAsync(host.Client, $"/api/dispatch/{data.Booking.Id}/unassign", new UnassignDriverRequest());
+            var result = await response.Content.ReadFromJsonAsync<DispatchBoardItemDto>();
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(BookingStatus.Confirmed, result?.Status);
+            Assert.Null(result?.DriverId);
+        });
+    }
+
+    [Fact]
+    public async Task StatusProgression_MovesAssignedJourneyToCompletion()
+    {
+        await WithDispatchDataAsync(async (host, data) =>
+        {
+            using var assigned = await PatchAsync(host.Client, $"/api/dispatch/{data.Booking.Id}/assign", new AssignDriverRequest { DriverId = data.ActiveDriver.Id });
+            assigned.EnsureSuccessStatusCode();
+            foreach (var status in new[] { BookingStatus.DriverEnRoute, BookingStatus.PassengerOnBoard, BookingStatus.Completed })
+            {
+                using var response = await PatchAsync(host.Client, $"/api/dispatch/{data.Booking.Id}/status", new DispatchStatusUpdateDto { Status = status });
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            }
+
+            var jobs = await host.Client.GetFromJsonAsync<List<DispatchBoardItemDto>>("/api/dispatch");
+            Assert.DoesNotContain(jobs!, item => item.BookingId == data.Booking.Id);
+        });
+    }
+
+    [Fact]
+    public async Task InvalidAssignmentState_ReturnsConflict()
+    {
+        await WithDispatchDataAsync(async (host, data) =>
+        {
+            var pending = await AddBookingAsync(host, data, BookingStatus.Pending);
+            using var response = await PatchAsync(host.Client, $"/api/dispatch/{pending.Id}/assign", new AssignDriverRequest { DriverId = data.ActiveDriver.Id });
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        });
+    }
+
+    [Fact]
+    public async Task CrossTenantBooking_ReturnsNotFound()
+    {
+        await WithDispatchDataAsync(async (host, data) =>
+        {
+            var other = await AddOtherTenantAsync(host);
+            using var response = await PatchAsync(host.Client, $"/api/dispatch/{other.Booking.Id}/assign", new AssignDriverRequest { DriverId = data.ActiveDriver.Id });
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        });
+    }
+
+    [Fact]
+    public async Task CrossTenantDriver_ReturnsNotFound()
+    {
+        await WithDispatchDataAsync(async (host, data) =>
+        {
+            var other = await AddOtherTenantAsync(host);
+            using var response = await PatchAsync(host.Client, $"/api/dispatch/{data.Booking.Id}/assign", new AssignDriverRequest { DriverId = other.Driver.Id });
+            Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        });
+    }
+
+    [Fact]
+    public async Task InactiveDriver_ReturnsConflict()
+    {
+        await WithDispatchDataAsync(async (host, data) =>
+        {
+            using var response = await PatchAsync(host.Client, $"/api/dispatch/{data.Booking.Id}/assign", new AssignDriverRequest { DriverId = data.InactiveDriver.Id });
+            Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
+        });
+    }
+
+    private static async Task WithDispatchDataAsync(Func<TestApiHost, DispatchData, Task> test)
+    {
+        await using var host = await TestApiHost.StartAsync();
+        var companyId = LondonVipCompany.Id;
+        var customer = NewCustomer(companyId, "Current");
+        var vehicle = NewVehicle(companyId, "LVC26VIP");
+        var active = NewDriver(companyId, true, vehicle.Id, "Active");
+        var inactive = NewDriver(companyId, false, null, "Inactive");
+        var booking = NewBooking(companyId, customer.Id, BookingStatus.Confirmed);
+        await using (var scope = host.App.Services.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<LondonVIPDbContext>();
+            db.AddRange(customer, vehicle, active, inactive, booking);
+            await db.SaveChangesAsync();
+        }
+        await test(host, new DispatchData(companyId, customer, vehicle, active, inactive, booking));
+    }
+
+    private static async Task<Booking> AddBookingAsync(TestApiHost host, DispatchData data, BookingStatus status, Guid? driverId = null)
+    {
+        var booking = NewBooking(data.CompanyId, data.Customer.Id, status, driverId);
+        await using var scope = host.App.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<LondonVIPDbContext>();
+        db.Bookings.Add(booking); await db.SaveChangesAsync(); return booking;
+    }
+
+    private static async Task<Driver> AddDriverAsync(TestApiHost host, Guid companyId, bool active, Guid? vehicleId, string name)
+    {
+        var driver = NewDriver(companyId, active, vehicleId, name);
+        await using var scope = host.App.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<LondonVIPDbContext>();
+        db.Drivers.Add(driver); await db.SaveChangesAsync(); return driver;
+    }
+
+    private static async Task<OtherTenantData> AddOtherTenantAsync(TestApiHost host)
+    {
+        var companyId = Guid.NewGuid();
+        var company = new Company { Id = companyId, TradingName = "Other Cars", LegalName = "Other Cars", Slug = $"other-{companyId:N}", Email = "other@example.test", Phone = "000", WebsiteUrl = "", AddressLine1 = "Test", AddressLine2 = "", City = "London", Postcode = "TEST", Country = "UK", TimeZone = "Europe/London", CurrencyCode = "GBP", IsActive = true, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
+        var customer = NewCustomer(companyId, "Other");
+        var driver = NewDriver(companyId, true, null, "Other");
+        var booking = NewBooking(companyId, customer.Id, BookingStatus.Confirmed);
+        await using var scope = host.App.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<LondonVIPDbContext>();
+        db.AddRange(company, customer, driver, booking); await db.SaveChangesAsync();
+        return new OtherTenantData(company, driver, booking);
+    }
+
+    private static Customer NewCustomer(Guid companyId, string name) => new() { Id = Guid.NewGuid(), CompanyId = companyId, FirstName = name, LastName = "Passenger", Email = $"{Guid.NewGuid():N}@example.test", Phone = "000", CreatedAt = DateTimeOffset.UtcNow, IsActive = true };
+    private static Vehicle NewVehicle(Guid companyId, string registration) => new() { Id = Guid.NewGuid(), CompanyId = companyId, RegistrationNumber = registration, Make = "Mercedes", Model = "E-Class", VehicleType = VehicleType.Saloon, PassengerCapacity = 4, LuggageCapacity = 2, IsActive = true };
+    private static Driver NewDriver(Guid companyId, bool active, Guid? vehicleId, string name) => new() { Id = Guid.NewGuid(), CompanyId = companyId, FirstName = name, LastName = "Driver", Email = $"{Guid.NewGuid():N}@example.test", Phone = "000", VehicleId = vehicleId, IsActive = active };
+    private static Booking NewBooking(Guid companyId, Guid customerId, BookingStatus status, Guid? driverId = null) => new() { Id = Guid.NewGuid(), BookingReference = $"LVC-{Guid.NewGuid():N}"[..20], CompanyId = companyId, CustomerId = customerId, PickupAddress = "Heathrow Terminal 5", Destination = "Mayfair", PickupDateTime = DateTimeOffset.UtcNow.AddMinutes(45), PassengerCount = 2, LuggageCount = 2, VehicleType = VehicleType.Saloon, BaseFare = 50m, Extras = 10m, TotalFare = 60m, DriverId = driverId, Status = status, PaymentStatus = "Pending", CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
+
+    private static Task<HttpResponseMessage> PatchAsync<T>(HttpClient client, string uri, T body) => client.SendAsync(new HttpRequestMessage(HttpMethod.Patch, uri) { Content = JsonContent.Create(body) });
+    private sealed record DispatchData(Guid CompanyId, Customer Customer, Vehicle Vehicle, Driver ActiveDriver, Driver InactiveDriver, Booking Booking);
+    private sealed record OtherTenantData(Company Company, Driver Driver, Booking Booking);
+}

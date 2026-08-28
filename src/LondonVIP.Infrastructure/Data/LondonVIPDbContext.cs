@@ -60,7 +60,7 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
             entity.HasIndex(driver => new { driver.CompanyId, driver.Email });
             entity.HasOne(driver => driver.Company).WithMany(company => company.Drivers)
                 .HasForeignKey(driver => driver.CompanyId).OnDelete(DeleteBehavior.Restrict);
-            entity.HasOne<Vehicle>().WithMany().HasForeignKey(driver => driver.VehicleId)
+            entity.HasOne(driver => driver.Vehicle).WithMany().HasForeignKey(driver => driver.VehicleId)
                 .OnDelete(DeleteBehavior.SetNull);
         });
 

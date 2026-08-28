@@ -59,6 +59,7 @@ public static class Program
 
         app.MapCompanySetupEndpoints();
         app.MapBookingEndpoints();
+        app.MapDispatchEndpoints();
 
         var summaries = new[]
         {

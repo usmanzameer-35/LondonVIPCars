@@ -1,0 +1,130 @@
+@page "/erp/dispatch"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using LondonVIP.Shared.Dispatch
+@using LondonVIP.Shared.Models
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Dispatch | London VIP Cars ERP</PageTitle>
+
+<div class="dispatch-page">
+    <header class="dispatch-heading">
+        <div><span>Operations</span><h1>Dispatch</h1><p>Assign drivers and progress live journeys for London VIP Cars.</p></div>
+        <button type="button" class="refresh-button" disabled="@Loading" @onclick="LoadAsync">Refresh board</button>
+    </header>
+
+    @if (Loading)
+    {
+        <div class="dispatch-state">Loading live dispatch data...</div>
+    }
+    else if (!string.IsNullOrEmpty(Error))
+    {
+        <div class="dispatch-state error" role="alert">@Error</div>
+    }
+    else
+    {
+        <section class="dispatch-summary" aria-label="Dispatch summary">
+            <div><strong>@Unassigned.Count</strong><span>Unassigned</span></div>
+            <div><strong>@Assigned.Count</strong><span>Assigned</span></div>
+            <div><strong>@ActiveCount</strong><span>Active journeys</span></div>
+            <div><strong>@Drivers.Count</strong><span>Active drivers</span></div>
+        </section>
+
+        <section class="upcoming-section">
+            <div class="section-title"><div><span>Operational window</span><h2>Upcoming jobs</h2></div><small>Next 2 hours · real booking data</small></div>
+            @if (Upcoming.Count == 0) { <p class="empty-line">No operational jobs are due in the next two hours.</p> }
+            else { <div class="upcoming-list">@foreach (var job in Upcoming) { <a href="#dispatch-@job.BookingId"><strong>@job.PickupDateTime.LocalDateTime.ToString("HH:mm")</strong><span>@job.BookingReference · @job.CustomerName</span><em>@TimingLabel(job)</em></a> }</div> }
+        </section>
+
+        <section class="dispatch-board" aria-label="Operational dispatch board">
+            @BoardColumn("Unassigned", "Confirmed jobs awaiting a driver", Unassigned, "unassigned")
+            @BoardColumn("Assigned", "Driver confirmed", Assigned, "assigned")
+            @BoardColumn("En Route", "Driver travelling to pickup", EnRoute, "active")
+            @BoardColumn("Passenger On Board", "Journey in progress", PassengerOnBoard, "active")
+        </section>
+    }
+</div>
+
+@code {
+    private static readonly System.Globalization.CultureInfo UkCulture = System.Globalization.CultureInfo.GetCultureInfo("en-GB");
+    private List<DispatchBoardItemDto> Jobs { get; set; } = [];
+    private List<DriverAvailabilityDto> Drivers { get; set; } = [];
+    private Dictionary<Guid, Guid> DriverSelections { get; } = [];
+    private bool Loading { get; set; } = true;
+    private string? Error { get; set; }
+    private Guid? BusyBooking { get; set; }
+    private List<DispatchBoardItemDto> Unassigned => Jobs.Where(x => x.Status == BookingStatus.Confirmed && x.DriverId is null).ToList();
+    private List<DispatchBoardItemDto> Assigned => Jobs.Where(x => x.Status == BookingStatus.Assigned).ToList();
+    private List<DispatchBoardItemDto> EnRoute => Jobs.Where(x => x.Status == BookingStatus.DriverEnRoute).ToList();
+    private List<DispatchBoardItemDto> PassengerOnBoard => Jobs.Where(x => x.Status == BookingStatus.PassengerOnBoard).ToList();
+    private int ActiveCount => EnRoute.Count + PassengerOnBoard.Count;
+    private List<DispatchBoardItemDto> Upcoming { get { var now = DateTimeOffset.Now; return Jobs.Where(x => x.PickupDateTime >= now && x.PickupDateTime <= now.AddHours(2)).OrderBy(x => x.PickupDateTime).ToList(); } }
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        Loading = true; Error = null;
+        try
+        {
+            var boardTask = Client().GetFromJsonAsync<List<DispatchBoardItemDto>>("api/dispatch");
+            var driversTask = Client().GetFromJsonAsync<List<DriverAvailabilityDto>>("api/dispatch/drivers");
+            await Task.WhenAll(boardTask, driversTask);
+            Jobs = boardTask.Result ?? [];
+            Drivers = driversTask.Result ?? [];
+            foreach (var job in Jobs.Where(x => x.DriverId.HasValue)) DriverSelections[job.BookingId] = job.DriverId!.Value;
+        }
+        catch (Exception) { Error = "Dispatch data could not be loaded. Make sure LondonVIP.Api is running."; }
+        finally { Loading = false; }
+    }
+
+    private RenderFragment BoardColumn(string title, string description, List<DispatchBoardItemDto> items, string tone) => @<section class="dispatch-column @tone">
+        <header><div><h2>@title</h2><p>@description</p></div><span>@items.Count</span></header>
+        <div class="dispatch-cards">
+            @if (items.Count == 0) { <p class="column-empty">No jobs in this stage.</p> }
+            @foreach (var job in items) { @JobCard(job) }
+        </div>
+    </section>;
+
+    private RenderFragment JobCard(DispatchBoardItemDto job) => @<article class="dispatch-card timing-@job.TimingState.ToString().ToLowerInvariant()" id="dispatch-@job.BookingId">
+        <div class="card-top"><div><strong>@job.BookingReference</strong><span>@job.PickupDateTime.LocalDateTime.ToString("dd MMM · HH:mm")</span></div><em>@TimingLabel(job)</em></div>
+        <h3>@job.CustomerName</h3>
+        <div class="route"><span>@job.PickupAddress</span><small>to</small><span>@job.Destination</span></div>
+        @if (!string.IsNullOrWhiteSpace(job.AirportCode) || !string.IsNullOrWhiteSpace(job.FlightNumber)) { <p class="flight">Airport: @(job.AirportCode ?? "—") · Flight: @(job.FlightNumber ?? "—")</p> }
+        <dl><div><dt>Vehicle</dt><dd>@Display(job.VehicleType)</dd></div><div><dt>Fare</dt><dd>@job.TotalFare.ToString("C", UkCulture)</dd></div><div><dt>Payment</dt><dd>@job.PaymentStatus</dd></div><div><dt>Status</dt><dd>@Display(job.Status)</dd></div></dl>
+        <div class="driver-line"><span>Driver</span><strong>@(job.DriverName ?? "Unassigned")</strong>@if (!string.IsNullOrWhiteSpace(job.DriverVehicleRegistration)) { <small>@job.DriverVehicleRegistration</small> }</div>
+        @if (job.Status is BookingStatus.Confirmed or BookingStatus.Assigned)
+        {
+            <label class="driver-select"><span>Choose active driver</span><select value="@SelectedDriver(job)" @onchange="args => SelectDriver(job.BookingId, args.Value?.ToString())"><option value="">Select driver</option>@foreach (var driver in Drivers) { <option value="@driver.DriverId">@DriverLabel(driver)</option> }</select></label>
+            <div class="card-actions"><button type="button" disabled="@(BusyBooking == job.BookingId || !DriverSelections.ContainsKey(job.BookingId))" @onclick="() => AssignAsync(job)">@(job.DriverId is null ? "Assign driver" : "Reassign")</button>@if (job.Status == BookingStatus.Assigned) { <button type="button" class="secondary" disabled="@(BusyBooking == job.BookingId)" @onclick="() => UnassignAsync(job)">Unassign</button> }</div>
+        }
+        @if (NextStatus(job.Status) is { } next) { <button type="button" class="progress-button" disabled="@(BusyBooking == job.BookingId)" @onclick="() => UpdateStatusAsync(job, next)">Move to @Display(next)</button> }
+    </article>;
+
+    private string SelectedDriver(DispatchBoardItemDto job) => DriverSelections.TryGetValue(job.BookingId, out var id) ? id.ToString() : string.Empty;
+    private void SelectDriver(Guid bookingId, string? value) { if (Guid.TryParse(value, out var id)) DriverSelections[bookingId] = id; else DriverSelections.Remove(bookingId); }
+    private async Task AssignAsync(DispatchBoardItemDto job) { if (DriverSelections.TryGetValue(job.BookingId, out var id)) await PatchAsync(job.BookingId, "assign", new AssignDriverRequest { DriverId = id }); }
+    private Task UnassignAsync(DispatchBoardItemDto job) => PatchAsync(job.BookingId, "unassign", new UnassignDriverRequest());
+    private Task UpdateStatusAsync(DispatchBoardItemDto job, BookingStatus status) => PatchAsync(job.BookingId, "status", new DispatchStatusUpdateDto { Status = status });
+
+    private async Task PatchAsync<T>(Guid bookingId, string action, T payload)
+    {
+        BusyBooking = bookingId; Error = null;
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Patch, $"api/dispatch/{bookingId}/{action}") { Content = JsonContent.Create(payload) };
+            using var response = await Client().SendAsync(request);
+            if (!response.IsSuccessStatusCode) { var problem = await response.Content.ReadFromJsonAsync<ApiError>(); Error = problem?.Message ?? "The dispatch action could not be completed."; return; }
+            await LoadAsync();
+        }
+        catch (Exception) { Error = "The dispatch action could not reach the API."; }
+        finally { BusyBooking = null; }
+    }
+
+    private HttpClient Client() => HttpClientFactory.CreateClient("LondonVIP.Api");
+    private static BookingStatus? NextStatus(BookingStatus status) => status switch { BookingStatus.Assigned => BookingStatus.DriverEnRoute, BookingStatus.DriverEnRoute => BookingStatus.PassengerOnBoard, BookingStatus.PassengerOnBoard => BookingStatus.Completed, _ => null };
+    private static string DriverLabel(DriverAvailabilityDto driver) => string.Join(" · ", new[] { driver.DriverName, driver.VehicleDisplay, driver.RegistrationNumber }.Where(x => !string.IsNullOrWhiteSpace(x)));
+    private static string TimingLabel(DispatchBoardItemDto job) => job.TimingState switch { DispatchTimingState.Overdue => "Pickup overdue", DispatchTimingState.Approaching => "Pickup approaching", DispatchTimingState.Active => "Active journey", _ => job.DriverId is null ? "Unassigned" : "Scheduled" };
+    private static string Display<T>(T value) where T : Enum => System.Text.RegularExpressions.Regex.Replace(value.ToString(), "([a-z])([A-Z])", "$1 $2");
+    private sealed class ApiError { public string? Message { get; set; } }
+}

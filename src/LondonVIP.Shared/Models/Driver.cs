@@ -18,5 +18,7 @@ public class Driver
 
     public Guid? VehicleId { get; set; }
 
+    public Vehicle? Vehicle { get; set; }
+
     public bool IsActive { get; set; }
 }
