@@ -1,4 +1,6 @@
 using LondonVIP.Infrastructure.Data;
+using LondonVIP.Infrastructure.Pricing;
+using LondonVIP.Shared.Pricing;
 using Microsoft.EntityFrameworkCore;
 
 namespace LondonVIP.Api;
@@ -19,6 +21,7 @@ public static class Program
             options.UseSqlServer(
                 builder.Configuration.GetConnectionString("DefaultConnection")
                 ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.")));
+        builder.Services.AddScoped<IPricingService, PricingService>();
 
         var app = builder.Build();
 
@@ -33,6 +36,15 @@ public static class Program
         {
             service = "London VIP Cars",
             status = "online"
+        });
+
+        app.MapPost("/api/quotes", async (
+            QuoteRequest request,
+            IPricingService pricingService,
+            CancellationToken cancellationToken) =>
+        {
+            var quote = await pricingService.CalculateQuoteAsync(request, cancellationToken);
+            return Results.Ok(quote);
         });
 
         var summaries = new[]
