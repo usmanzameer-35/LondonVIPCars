@@ -1,0 +1,20 @@
+@using LondonVIP.Web.Components.Erp
+
+<div class="module-page">
+    <header class="module-hero">
+        <div><span class="module-category">@Module.Category</span><h1>@Module.Title</h1><p>@Module.Description</p></div>
+        <span class="module-status"><i></i>@Module.Status</span>
+    </header>
+    <div class="demo-banner"><strong>Development preview</strong><span>This module is a polished shell. The information below is placeholder content and is not live operational data.</span></div>
+    <section class="future-card">
+        <header><div><span class="card-kicker">Module roadmap</span><h2>Designed for the next stage</h2></div><span class="roadmap-count">@Module.FutureFeatures.Length capabilities</span></header>
+        <div class="future-grid">
+            @for (var index = 0; index < Module.FutureFeatures.Length; index++)
+            {
+                <article><span>@((index + 1).ToString("00"))</span><h3>@Module.FutureFeatures[index]</h3><p>Foundation planned for a future delivery phase.</p></article>
+            }
+        </div>
+    </section>
+</div>
+
+@code { [Parameter, EditorRequired] public ErpModuleDefinition Module { get; set; } = null!; }

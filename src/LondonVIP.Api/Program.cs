@@ -16,7 +16,13 @@ public static class Program
 
     public static WebApplication CreateApp(string[] args, Action<IServiceCollection>? configureServices = null)
     {
-        var builder = WebApplication.CreateBuilder(args);
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            Args = args,
+            ApplicationName = typeof(Program).Assembly.GetName().Name,
+            ContentRootPath = ResolveContentRoot("LondonVIP.Api"),
+            EnvironmentName = ResolveEnvironment(args)
+        });
 
         builder.Services.AddOpenApi();
         builder.Services.AddDbContext<LondonVIPDbContext>(options =>
@@ -73,6 +79,27 @@ public static class Program
         .WithName("GetWeatherForecast");
 
         return app;
+    }
+
+    private static string ResolveContentRoot(string projectName)
+    {
+        foreach (var startingPath in new[] { Directory.GetCurrentDirectory(), AppContext.BaseDirectory })
+        {
+            for (var directory = new DirectoryInfo(startingPath); directory is not null; directory = directory.Parent)
+            {
+                var workspaceProject = Path.Combine(directory.FullName, "src", projectName);
+                if (File.Exists(Path.Combine(workspaceProject, $"{projectName}.csproj"))) return workspaceProject;
+                if (File.Exists(Path.Combine(directory.FullName, $"{projectName}.csproj"))) return directory.FullName;
+            }
+        }
+
+        return Directory.GetCurrentDirectory();
+    }
+
+    private static string? ResolveEnvironment(string[] args)
+    {
+        var index = Array.FindIndex(args, argument => argument is "--environment" or "-e");
+        return index >= 0 && index + 1 < args.Length ? args[index + 1] : null;
     }
 }
 

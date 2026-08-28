@@ -1,0 +1,20 @@
+.module-page { width: min(1180px, calc(100% - 2rem)); margin-inline: auto; padding: 2rem 0 5rem; }
+.module-hero { display: flex; margin-bottom: 1.5rem; flex-direction: column; gap: 1rem; }
+.module-category, .card-kicker { color: #58716b; font-size: .65rem; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
+.module-hero h1 { margin: .35rem 0 .5rem; font: clamp(2rem, 4vw, 3rem)/1.08 Georgia, serif; letter-spacing: -.035em; }
+.module-hero p { max-width: 650px; margin: 0; color: #697773; font-size: .86rem; }
+.module-status { width: fit-content; display: inline-flex; padding: .4rem .7rem; align-items: center; gap: .4rem; border: 1px solid #d7dfdb; border-radius: 2rem; background: white; color: #50625d; font-size: .68rem; font-weight: 750; }
+.module-status i { width: .45rem; height: .45rem; border-radius: 50%; background: #c7953e; }
+.demo-banner { display: flex; padding: .8rem 1rem; flex-direction: column; gap: .15rem; border: 1px solid #e6d4af; border-radius: .55rem; background: #fff9ec; color: #6f5625; font-size: .72rem; }
+.future-card { margin-top: 1.5rem; padding: 1.25rem; border: 1px solid #dce3df; border-radius: .75rem; background: white; box-shadow: 0 8px 30px rgba(19,47,41,.04); }
+.future-card > header { display: flex; padding-bottom: 1.2rem; align-items: end; justify-content: space-between; gap: 1rem; border-bottom: 1px solid #e2e7e4; }
+.future-card h2 { margin: .25rem 0 0; font: 1.35rem Georgia, serif; }
+.roadmap-count { color: #788681; font-size: .68rem; }
+.future-grid { display: grid; }
+.future-grid article { padding: 1.25rem 0; border-bottom: 1px solid #e6ebe8; }
+.future-grid article:last-child { border-bottom: 0; }
+.future-grid article > span { color: #b18436; font: italic .78rem Georgia, serif; }
+.future-grid h3 { margin: .4rem 0 .25rem; font-size: .85rem; }
+.future-grid p { margin: 0; color: #7a8783; font-size: .7rem; }
+@media (min-width: 650px) { .module-page { width: min(1180px, calc(100% - 3rem)); padding-top: 3rem; } .module-hero { flex-direction: row; align-items: end; justify-content: space-between; } .demo-banner { flex-direction: row; gap: .8rem; } .future-card { padding: 1.75rem; } .future-grid { grid-template-columns: repeat(2, 1fr); gap: 0 2rem; } }
+@media (min-width: 1100px) { .future-grid { grid-template-columns: repeat(3, 1fr); } }

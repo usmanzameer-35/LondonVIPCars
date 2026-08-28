@@ -1,0 +1,7 @@
+.dashboard-panel { min-width: 0; display: flex; flex-direction: column; border: 1px solid #dce3df; border-radius: .7rem; background: white; box-shadow: 0 7px 24px rgba(20,47,41,.035); }
+.dashboard-panel > header { display: flex; padding: 1rem 1.1rem; align-items: center; justify-content: space-between; border-bottom: 1px solid #e5eae7; }
+.dashboard-panel header span { color: #75847f; font-size: .55rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.dashboard-panel h2 { margin: .15rem 0 0; font: 1rem Georgia, serif; }
+.dashboard-panel header a { width: 1.8rem; height: 1.8rem; display: grid; place-items: center; border-radius: 50%; color: #315a51; text-decoration: none; }
+.panel-body { min-height: 105px; padding: 1rem 1.1rem; }
+.dashboard-panel footer { margin-top: auto; padding: .65rem 1.1rem; border-top: 1px solid #edf0ee; color: #8a9692; font-size: .6rem; }

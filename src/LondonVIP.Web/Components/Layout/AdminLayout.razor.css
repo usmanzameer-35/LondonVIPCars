@@ -1,18 +1,46 @@
-.erp-shell { min-height: 100vh; display: grid; color: #1d2c29; background: #f4f6f5; font-family: Inter, "Segoe UI", sans-serif; }
-.erp-sidebar { display: none; padding: 1.5rem; color: #dce8e3; background: #102f2a; }
-.erp-brand { display: grid; grid-template-columns: 2.4rem 1fr; align-items: center; gap: 0 .75rem; color: white; text-decoration: none; }
-.erp-brand > span { width: 2.4rem; height: 2.4rem; grid-row: span 2; display: grid; place-items: center; border: 1px solid #bd9b56; border-radius: 50%; font-family: Georgia, serif; font-size: .75rem; }
-.erp-brand strong { align-self: end; font-family: Georgia, serif; font-size: .95rem; }
-.erp-brand small { align-self: start; color: #91aaa3; font-size: .6rem; letter-spacing: .12em; text-transform: uppercase; }
-.erp-sidebar nav { margin-top: 3rem; }
-.nav-label { display: block; margin: 1.5rem .75rem .6rem; color: #91aaa3; font-size: .63rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
-.nav-label.muted { opacity: .55; }
-.erp-sidebar nav a { display: flex; padding: .7rem .8rem; align-items: center; gap: .7rem; border-radius: .45rem; color: #c7d5d1; font-size: .8rem; font-weight: 650; text-decoration: none; }
-.erp-sidebar nav a.active { background: rgba(255,255,255,.1); color: white; }
-.back-link { margin-top: auto; color: #a9bcb6; font-size: .72rem; text-decoration: none; }
+.erp-shell { --sidebar-width: 260px; min-height: 100vh; display: grid; color: #1d2c29; background: #f4f6f5; font-family: Inter, "Segoe UI", sans-serif; }
+.sidebar-toggle { position: absolute; opacity: 0; pointer-events: none; }
+.erp-sidebar { display: none; color: #dce8e3; background: #102f2a; }
+.erp-brand { min-height: 4.35rem; display: flex; padding: .85rem 1rem; align-items: center; gap: .75rem; border-bottom: 1px solid rgba(255,255,255,.08); color: white; text-decoration: none; }
+.erp-brand > span:first-child { width: 2.35rem; height: 2.35rem; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid #bd9b56; border-radius: 50%; font-family: Georgia, serif; font-size: .72rem; }
+.brand-copy strong, .brand-copy small { display: block; white-space: nowrap; }
+.brand-copy strong { font-family: Georgia, serif; font-size: .92rem; }
+.brand-copy small { color: #91aaa3; font-size: .55rem; letter-spacing: .12em; text-transform: uppercase; }
+.nav-scroll { min-height: 0; flex: 1; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #38564f transparent; }
+.back-link { min-height: 3.2rem; display: flex; padding: .8rem 1rem; align-items: center; gap: .65rem; border-top: 1px solid rgba(255,255,255,.08); color: #a9bcb6; font-size: .68rem; text-decoration: none; }
 .erp-main { min-width: 0; }
-.erp-topbar { min-height: 4rem; display: flex; padding: .75rem 1rem; align-items: center; justify-content: flex-end; gap: .65rem; border-bottom: 1px solid #dce2df; background: white; }
-.environment-pill, .company-pill { padding: .3rem .65rem; border-radius: 2rem; font-size: .68rem; font-weight: 700; }
-.environment-pill { background: #fff0cf; color: #73520d; }
-.company-pill { background: #e4eee9; color: #174c40; }
-@media (min-width: 900px) { .erp-shell { grid-template-columns: 245px 1fr; } .erp-sidebar { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; } .erp-topbar { padding-inline: 2rem; } }
+.erp-topbar { position: sticky; z-index: 30; top: 0; min-height: 4.35rem; display: flex; padding: .65rem 1rem; align-items: center; gap: .8rem; border-bottom: 1px solid #dce2df; background: rgba(255,255,255,.96); backdrop-filter: blur(12px); }
+.desktop-collapse { display: none; width: 2.4rem; height: 2.4rem; padding: .65rem; align-content: space-around; cursor: pointer; border: 1px solid #d8e0dc; border-radius: .4rem; }
+.desktop-collapse span, .mobile-navigation summary span { height: 2px; display: block; background: #39514b; }
+.mobile-navigation { position: relative; }
+.mobile-navigation summary { width: 2.4rem; height: 2.4rem; display: grid; padding: .65rem; align-content: space-around; cursor: pointer; list-style: none; border: 1px solid #d8e0dc; border-radius: .4rem; }
+.mobile-navigation summary::-webkit-details-marker { display: none; }
+.mobile-drawer { position: fixed; z-index: 50; top: 4.35rem; right: 0; bottom: 0; left: 0; overflow-y: auto; color: white; background: #102f2a; box-shadow: 0 20px 50px rgba(8,31,27,.3); }
+.mobile-brand { padding: 1rem 1.35rem; border-bottom: 1px solid rgba(255,255,255,.08); font-family: Georgia, serif; }
+.mobile-brand small { display: block; color: #91aaa3; font: .55rem Inter, sans-serif; letter-spacing: .12em; text-transform: uppercase; }
+.breadcrumb { min-width: 0; display: flex; align-items: center; gap: .45rem; color: #81908b; font-size: .68rem; }
+.breadcrumb a { color: #61716c; text-decoration: none; }
+.breadcrumb strong { max-width: 28vw; overflow: hidden; color: #293b36; text-overflow: ellipsis; white-space: nowrap; }
+.top-actions { margin-left: auto; display: flex; align-items: center; gap: .4rem; }
+.environment-pill { padding: .28rem .6rem; border-radius: 2rem; background: #fff0cf; color: #73520d; font-size: .62rem; font-weight: 750; }
+.icon-button, .profile-button { min-height: 2.4rem; border: 1px solid #dbe2de; background: white; color: #344943; }
+.icon-button { position: relative; width: 2.4rem; border-radius: 50%; }
+.icon-button i { position: absolute; top: .35rem; right: .35rem; width: .4rem; height: .4rem; border: 1px solid white; border-radius: 50%; background: #bd8132; }
+.profile-button { display: flex; padding: .25rem .5rem; align-items: center; gap: .5rem; border-radius: 2rem; }
+.profile-button > span:first-child { width: 1.7rem; height: 1.7rem; display: grid; place-items: center; border-radius: 50%; background: #17483e; color: white; font: .55rem Georgia, serif; }
+.profile-copy { display: none; text-align: left; }
+.profile-copy strong, .profile-copy small { display: block; }
+.profile-copy strong { font-size: .65rem; }
+.profile-copy small { color: #84918d; font-size: .53rem; }
+@media (min-width: 650px) { .mobile-drawer { width: 340px; right: auto; } .profile-copy { display: block; } }
+@media (min-width: 900px) {
+    .erp-shell { grid-template-columns: var(--sidebar-width) minmax(0, 1fr); transition: grid-template-columns .2s; }
+    .erp-sidebar { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+    .erp-topbar { padding-inline: 1.2rem 2rem; }
+    .desktop-collapse { display: grid; }
+    .mobile-navigation { display: none; }
+    .erp-shell:has(.sidebar-toggle:checked) { grid-template-columns: 70px minmax(0, 1fr); }
+    .sidebar-toggle:checked ~ .erp-sidebar .brand-copy, .sidebar-toggle:checked ~ .erp-sidebar .nav-text, .sidebar-toggle:checked ~ .erp-sidebar ::deep .nav-text, .sidebar-toggle:checked ~ .erp-sidebar ::deep h2 { display: none; }
+    .sidebar-toggle:checked ~ .erp-sidebar .erp-brand { justify-content: center; padding-inline: .5rem; }
+    .sidebar-toggle:checked ~ .erp-sidebar .back-link { justify-content: center; }
+}

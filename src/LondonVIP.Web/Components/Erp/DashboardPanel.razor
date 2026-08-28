@@ -1,0 +1,13 @@
+<section class="dashboard-panel">
+    <header><div><span>@Kicker</span><h2>@Title</h2></div><a href="@Link" aria-label="Open @Title">&rarr;</a></header>
+    <div class="panel-body">@ChildContent</div>
+    <footer>@Empty</footer>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Kicker { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Link { get; set; } = string.Empty;
+    [Parameter] public string Empty { get; set; } = string.Empty;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

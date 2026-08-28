@@ -1,0 +1,7 @@
+.erp-navigation { padding: .75rem; }
+.erp-navigation section { margin-bottom: 1.25rem; }
+.erp-navigation h2 { margin: 0 .65rem .4rem; color: #78928b; font: 800 .56rem/1.2 Inter, sans-serif; letter-spacing: .13em; text-transform: uppercase; }
+.erp-navigation ::deep a { min-height: 2.35rem; display: flex; padding: .45rem .6rem; align-items: center; gap: .65rem; border-radius: .4rem; color: #b9cac5; font-size: .7rem; font-weight: 630; text-decoration: none; transition: background .15s, color .15s; }
+.erp-navigation ::deep a:hover { color: white; background: rgba(255,255,255,.06); }
+.erp-navigation ::deep a.active { color: white; background: rgba(255,255,255,.11); box-shadow: inset 2px 0 #c69d50; }
+.nav-icon { width: 1.45rem; height: 1.45rem; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.15); border-radius: .3rem; color: #9fb4ae; font-size: .48rem; font-weight: 800; }

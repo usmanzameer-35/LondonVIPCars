@@ -1,0 +1,20 @@
+@using LondonVIP.Web.Components.Erp
+
+<nav class="erp-navigation" aria-label="ERP modules">
+    @foreach (var group in ErpModuleCatalog.All.GroupBy(module => module.Category))
+    {
+        <section>
+            <h2>@group.Key</h2>
+            @foreach (var module in group)
+            {
+                <NavLink href="@module.Route" Match="@(module.Route == "/erp" ? NavLinkMatch.All : NavLinkMatch.Prefix)">
+                    <span class="nav-icon" aria-hidden="true">@Initials(module.Title)</span><span class="nav-text">@module.Title</span>
+                </NavLink>
+            }
+        </section>
+    }
+</nav>
+
+@code {
+    private static string Initials(string value) => string.Concat(value.Split([' ', '/', '&'], StringSplitOptions.RemoveEmptyEntries).Take(2).Select(word => char.ToUpperInvariant(word[0])));
+}

@@ -1,17 +1,39 @@
 @inherits LayoutComponentBase
+@using LondonVIP.Web.Components.Erp
+@inject NavigationManager Navigation
 
 <div class="erp-shell">
+    <input id="erp-sidebar-toggle" class="sidebar-toggle" type="checkbox" />
     <aside class="erp-sidebar">
-        <a class="erp-brand" href="/erp/company-setup"><span>LV</span><strong>London VIP Cars</strong><small>Operations</small></a>
-        <nav aria-label="ERP navigation">
-            <span class="nav-label">Configuration</span>
-            <a class="active" href="/erp/company-setup"><span aria-hidden="true">&#9881;</span> Company setup</a>
-            <span class="nav-label muted">More modules later</span>
-        </nav>
-        <a class="back-link" href="/">&larr; Customer website</a>
+        <a class="erp-brand" href="/erp"><span>LV</span><span class="brand-copy"><strong>London VIP Cars</strong><small>Operations ERP</small></span></a>
+        <div class="nav-scroll"><ErpNavigation /></div>
+        <a class="back-link" href="/"><span aria-hidden="true">&larr;</span><span class="nav-text">Customer website</span></a>
     </aside>
     <div class="erp-main">
-        <header class="erp-topbar"><span class="environment-pill">Development</span><span class="company-pill">London VIP Cars</span></header>
+        <header class="erp-topbar">
+            <label class="desktop-collapse" for="erp-sidebar-toggle" title="Collapse navigation" aria-label="Collapse navigation"><span></span><span></span><span></span></label>
+            <details class="mobile-navigation">
+                <summary aria-label="Open ERP navigation"><span></span><span></span><span></span></summary>
+                <div class="mobile-drawer"><div class="mobile-brand">London VIP Cars <small>Operations ERP</small></div><ErpNavigation /></div>
+            </details>
+            <div class="breadcrumb"><a href="/erp">ERP</a><span>/</span><strong>@CurrentTitle</strong></div>
+            <div class="top-actions">
+                <span class="environment-pill">Demo</span>
+                <button class="icon-button" type="button" aria-label="Notifications placeholder">&#9675;<i></i></button>
+                <button class="profile-button" type="button" aria-label="Profile placeholder"><span>LV</span><span class="profile-copy"><strong>London VIP Cars</strong><small>Current company</small></span></button>
+            </div>
+        </header>
         <main>@Body</main>
     </div>
 </div>
+
+@code {
+    private string CurrentTitle
+    {
+        get
+        {
+            var path = "/" + Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/');
+            return ErpModuleCatalog.Find(path)?.Title ?? "Operations";
+        }
+    }
+}

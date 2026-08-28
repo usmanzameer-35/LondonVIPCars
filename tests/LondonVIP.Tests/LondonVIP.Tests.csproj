@@ -22,6 +22,7 @@
     <ProjectReference Include="..\..\src\LondonVIP.Api\LondonVIP.Api.csproj" />
     <ProjectReference Include="..\..\src\LondonVIP.Shared\LondonVIP.Shared.csproj" />
     <ProjectReference Include="..\..\src\LondonVIP.Infrastructure\LondonVIP.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\LondonVIP.Web\LondonVIP.Web.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,36 @@
+@page "/erp/quotes"
+@page "/erp/bookings"
+@page "/erp/dispatch"
+@page "/erp/airport-operations"
+@page "/erp/leads"
+@page "/erp/customers"
+@page "/erp/corporate-accounts"
+@page "/erp/marketing"
+@page "/erp/communications"
+@page "/erp/drivers"
+@page "/erp/fleet"
+@page "/erp/driver-accounts"
+@page "/erp/pricing"
+@page "/erp/invoicing"
+@page "/erp/payments"
+@page "/erp/reports"
+@page "/erp/website-cms"
+@page "/erp/insights"
+@page "/erp/journey-intelligence"
+@page "/erp/support"
+@page "/erp/documents"
+@page "/erp/audit-logs"
+@page "/erp/users-security"
+@page "/erp/integrations"
+@page "/erp/system-settings"
+@layout AdminLayout
+@using LondonVIP.Web.Components.Erp
+@inject NavigationManager Navigation
+
+<PageTitle>@Module.Title | London VIP Cars ERP</PageTitle>
+<ModulePlaceholder Module="Module" />
+
+@code {
+    private ErpModuleDefinition Module => ErpModuleCatalog.Find("/" + Navigation.ToBaseRelativePath(Navigation.Uri).Split('?', '#')[0].Trim('/'))
+        ?? throw new InvalidOperationException("The ERP module route is not registered.");
+}
