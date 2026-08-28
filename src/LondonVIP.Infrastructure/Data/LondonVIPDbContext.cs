@@ -28,16 +28,23 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
     {
         modelBuilder.Entity<Booking>(entity =>
         {
+            entity.Property(booking => booking.BookingReference).HasMaxLength(40);
+            entity.Property(booking => booking.FlightNumber).HasMaxLength(20);
+            entity.Property(booking => booking.CustomerNotes).HasMaxLength(2000);
+            entity.Property(booking => booking.InternalNotes).HasMaxLength(4000);
             entity.Property(booking => booking.BaseFare).HasPrecision(18, 2);
             entity.Property(booking => booking.Extras).HasPrecision(18, 2);
             entity.Property(booking => booking.TotalFare).HasPrecision(18, 2);
+            entity.HasIndex(booking => new { booking.CompanyId, booking.BookingReference }).IsUnique();
             entity.HasIndex(booking => new { booking.CompanyId, booking.PickupDateTime });
             entity.HasIndex(booking => new { booking.CompanyId, booking.Status });
             entity.HasOne(booking => booking.Company).WithMany(company => company.Bookings)
                 .HasForeignKey(booking => booking.CompanyId).OnDelete(DeleteBehavior.Restrict);
-            entity.HasOne<Customer>().WithMany().HasForeignKey(booking => booking.CustomerId)
+            entity.HasOne(booking => booking.Customer).WithMany().HasForeignKey(booking => booking.CustomerId)
                 .OnDelete(DeleteBehavior.Restrict);
-            entity.HasOne<Driver>().WithMany().HasForeignKey(booking => booking.DriverId)
+            entity.HasOne(booking => booking.Driver).WithMany().HasForeignKey(booking => booking.DriverId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(booking => booking.Airport).WithMany().HasForeignKey(booking => booking.AirportId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
 

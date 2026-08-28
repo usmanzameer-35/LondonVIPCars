@@ -1,0 +1,106 @@
+@page "/erp/bookings"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using LondonVIP.Shared.Bookings
+@using LondonVIP.Shared.Models
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Bookings | London VIP Cars ERP</PageTitle>
+
+<div class="bookings-page">
+    <header class="bookings-heading"><div><span>Operations</span><h1>Bookings</h1><p>Manage real London VIP Cars passenger journeys.</p></div><button class="new-button" type="button" @onclick="NewBooking">+ New booking</button></header>
+
+    <section class="booking-filters" aria-label="Booking filters"><label><span>Search bookings</span><input type="search" placeholder="Reference, customer or journey" @bind="Search" @bind:event="oninput" /></label><label><span>Status</span><select @bind="StatusFilter"><option value="">All statuses</option>@foreach (var status in Enum.GetValues<BookingStatus>()) { <option value="@status">@Display(status)</option> }</select></label><button type="button" @onclick="LoadAsync">Refresh</button></section>
+
+    @if (Loading) { <div class="booking-state">Loading bookings...</div> }
+    else if (!string.IsNullOrEmpty(LoadError)) { <div class="booking-state error" role="alert">@LoadError</div> }
+    else if (FilteredBookings.Count == 0) { <div class="empty-bookings"><span aria-hidden="true">B</span><h2>No bookings found</h2><p>@(BookingItems.Count == 0 ? "There are no bookings in the current company database yet." : "No bookings match the current filters.")</p><button type="button" @onclick="NewBooking">Create first booking</button></div> }
+    else
+    {
+        <div class="booking-table-wrap"><table class="booking-table"><thead><tr><th>Reference / pickup</th><th>Customer</th><th>Journey</th><th>Airport / flight</th><th>Vehicle</th><th>Fare</th><th>Status</th><th>Payment</th><th>Driver</th><th></th></tr></thead><tbody>
+        @foreach (var booking in FilteredBookings)
+        {
+            <tr><td data-label="Reference"><strong>@booking.BookingReference</strong><small>@booking.PickupDateTime.LocalDateTime.ToString("dd MMM yyyy, HH:mm")</small></td><td data-label="Customer">@booking.CustomerName</td><td data-label="Journey"><span class="journey"><strong>@booking.PickupAddress</strong><small>&rarr; @booking.Destination</small></span></td><td data-label="Airport / flight">@(booking.AirportCode ?? "—") @if (!string.IsNullOrEmpty(booking.FlightNumber)) { <small>@booking.FlightNumber</small> }</td><td data-label="Vehicle">@Display(booking.VehicleType)</td><td data-label="Fare">@booking.TotalFare.ToString("C", UkCulture)</td><td data-label="Status"><span class="status-chip">@Display(booking.Status)</span></td><td data-label="Payment">@booking.PaymentStatus</td><td data-label="Driver">@(booking.DriverName ?? "Unassigned")</td><td><button class="edit-button" type="button" @onclick="() => EditBookingAsync(booking.Id)">Edit</button></td></tr>
+        }
+        </tbody></table></div>
+    }
+</div>
+
+@if (ShowEditor)
+{
+    <BookingEditor Model="EditorModel" Lookups="Lookups" IsEdit="@(EditingId is not null)" BookingReference="@EditingReference" Saving="Saving" Errors="SaveErrors" OnSave="SaveAsync" OnCancel="CloseEditor" />
+}
+
+@code {
+    private static readonly System.Globalization.CultureInfo UkCulture = System.Globalization.CultureInfo.GetCultureInfo("en-GB");
+    private List<BookingListItemDto> BookingItems { get; set; } = [];
+    private BookingLookupsDto Lookups { get; set; } = new();
+    private BookingUpdateDto EditorModel { get; set; } = new();
+    private Guid? EditingId { get; set; }
+    private string? EditingReference { get; set; }
+    private bool ShowEditor { get; set; }
+    private bool Loading { get; set; } = true;
+    private bool Saving { get; set; }
+    private string Search { get; set; } = string.Empty;
+    private string StatusFilter { get; set; } = string.Empty;
+    private string? LoadError { get; set; }
+    private List<string> SaveErrors { get; } = [];
+    private List<BookingListItemDto> FilteredBookings => BookingItems.Where(booking =>
+        (string.IsNullOrWhiteSpace(Search) || $"{booking.BookingReference} {booking.CustomerName} {booking.PickupAddress} {booking.Destination} {booking.FlightNumber}".Contains(Search, StringComparison.OrdinalIgnoreCase)) &&
+        (string.IsNullOrEmpty(StatusFilter) || booking.Status.ToString() == StatusFilter)).ToList();
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        Loading = true; LoadError = null;
+        try
+        {
+            var client = Client();
+            var bookingsTask = client.GetFromJsonAsync<List<BookingListItemDto>>("api/bookings");
+            var lookupsTask = client.GetFromJsonAsync<BookingLookupsDto>("api/bookings/lookups");
+            await Task.WhenAll(bookingsTask, lookupsTask);
+            BookingItems = bookingsTask.Result ?? [];
+            Lookups = lookupsTask.Result ?? new();
+        }
+        catch (Exception) { LoadError = "Bookings could not be loaded. Make sure LondonVIP.Api is running."; }
+        finally { Loading = false; }
+    }
+
+    private void NewBooking()
+    {
+        EditorModel = new BookingUpdateDto { PickupDateTime = DateTimeOffset.Now.AddHours(1), PassengerCount = 1, PaymentStatus = "Pending", Status = BookingStatus.Pending };
+        EditingId = null; EditingReference = null; SaveErrors.Clear(); ShowEditor = true;
+    }
+
+    private async Task EditBookingAsync(Guid id)
+    {
+        try
+        {
+            var detail = await Client().GetFromJsonAsync<BookingDetailDto>($"api/bookings/{id}");
+            if (detail is null) return;
+            EditorModel = new BookingUpdateDto { CustomerId = detail.CustomerId, PickupAddress = detail.PickupAddress, Destination = detail.Destination, PickupDateTime = detail.PickupDateTime, PassengerCount = detail.PassengerCount, LuggageCount = detail.LuggageCount, VehicleType = detail.VehicleType, AirportId = detail.AirportId, FlightNumber = detail.FlightNumber, IsAirportPickup = detail.IsAirportPickup, IsMeetAndGreet = detail.IsMeetAndGreet, CustomerNotes = detail.CustomerNotes, InternalNotes = detail.InternalNotes, BaseFare = detail.BaseFare, Extras = detail.Extras, TotalFare = detail.TotalFare, DriverId = detail.DriverId, Status = detail.Status, PaymentStatus = detail.PaymentStatus };
+            EditingId = id; EditingReference = detail.BookingReference; SaveErrors.Clear(); ShowEditor = true;
+        }
+        catch (Exception) { LoadError = "The booking could not be opened."; }
+    }
+
+    private async Task SaveAsync()
+    {
+        Saving = true; SaveErrors.Clear();
+        try
+        {
+            using var response = EditingId is { } id ? await Client().PutAsJsonAsync($"api/bookings/{id}", EditorModel) : await Client().PostAsJsonAsync("api/bookings", EditorModel);
+            if (response.IsSuccessStatusCode) { ShowEditor = false; await LoadAsync(); }
+            else if (response.StatusCode == System.Net.HttpStatusCode.BadRequest) { var problem = await response.Content.ReadFromJsonAsync<ValidationResponse>(); SaveErrors.AddRange(problem?.Errors.SelectMany(item => item.Value) ?? ["Please check the booking fields."]); }
+            else SaveErrors.Add("The booking could not be saved.");
+        }
+        catch (Exception) { SaveErrors.Add("The API could not be reached. No changes were saved."); }
+        finally { Saving = false; }
+    }
+
+    private void CloseEditor() => ShowEditor = false;
+    private HttpClient Client() => HttpClientFactory.CreateClient("LondonVIP.Api");
+    private static string Display<T>(T value) where T : Enum => System.Text.RegularExpressions.Regex.Replace(value.ToString(), "([a-z])([A-Z])", "$1 $2");
+    private sealed class ValidationResponse { public Dictionary<string, string[]> Errors { get; set; } = []; }
+}

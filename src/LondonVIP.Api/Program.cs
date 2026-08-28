@@ -58,6 +58,7 @@ public static class Program
         });
 
         app.MapCompanySetupEndpoints();
+        app.MapBookingEndpoints();
 
         var summaries = new[]
         {

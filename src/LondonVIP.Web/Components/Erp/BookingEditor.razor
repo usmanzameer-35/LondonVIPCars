@@ -1,0 +1,66 @@
+@using LondonVIP.Shared.Bookings
+@using LondonVIP.Shared.Models
+
+<div class="editor-backdrop" role="presentation">
+    <section class="booking-editor" role="dialog" aria-modal="true" aria-labelledby="booking-editor-title">
+        <header><div><span>@(IsEdit ? "Edit operational booking" : "New operational booking")</span><h2 id="booking-editor-title">@(IsEdit ? BookingReference : "Create booking")</h2></div><button type="button" @onclick="Cancel" aria-label="Close booking form">&#10005;</button></header>
+        <EditForm Model="Model" OnSubmit="Submit">
+            @if (Errors.Count > 0) { <div class="editor-errors" role="alert"><strong>Please review the booking.</strong><ul>@foreach (var error in Errors) { <li>@error</li> }</ul></div> }
+
+            <div class="editor-section"><h3>Journey &amp; customer</h3><div class="editor-grid">
+                <label><span>Customer *</span><select required @bind="Model.CustomerId"><option value="">Select customer</option>@foreach (var item in Lookups.Customers) { <option value="@item.Id">@item.Label</option> }</select></label>
+                <label><span>Pickup date &amp; time *</span><input type="datetime-local" required value="@PickupLocal" @onchange="UpdatePickup" /></label>
+                <label class="wide"><span>Pickup address *</span><input required @bind="Model.PickupAddress" /></label>
+                <label class="wide"><span>Destination *</span><input required @bind="Model.Destination" /></label>
+                <label><span>Passengers *</span><input type="number" min="1" max="8" @bind="Model.PassengerCount" /></label>
+                <label><span>Luggage *</span><input type="number" min="0" max="20" @bind="Model.LuggageCount" /></label>
+                <label><span>Vehicle *</span><select @bind="Model.VehicleType">@foreach (var type in Enum.GetValues<VehicleType>()) { <option value="@type">@Display(type)</option> }</select></label>
+                <label><span>Driver</span><select @bind="Model.DriverId"><option value="">Unassigned</option>@foreach (var item in Lookups.Drivers) { <option value="@item.Id">@item.Label</option> }</select></label>
+            </div></div>
+
+            <div class="editor-section"><h3>Airport details</h3><div class="editor-grid">
+                <label><span>Airport</span><select @bind="Model.AirportId"><option value="">Not applicable</option>@foreach (var airport in Lookups.Airports) { <option value="@airport.Id">@airport.Code — @airport.Name</option> }</select></label>
+                <label><span>Flight number</span><input maxlength="20" placeholder="e.g. BA281" @bind="Model.FlightNumber" /></label>
+                <label class="toggle"><input type="checkbox" @bind="Model.IsAirportPickup" /><span><strong>Airport pickup</strong><small>Collection starts at an airport.</small></span></label>
+                <label class="toggle"><input type="checkbox" @bind="Model.IsMeetAndGreet" /><span><strong>Meet &amp; greet</strong><small>Driver meets the passenger in arrivals.</small></span></label>
+            </div></div>
+
+            <div class="editor-section"><h3>Fare &amp; status</h3><div class="editor-grid three">
+                <label><span>Base fare</span><input type="number" min="0" step="0.01" @bind="Model.BaseFare" /></label>
+                <label><span>Extras</span><input type="number" min="0" step="0.01" @bind="Model.Extras" /></label>
+                <label><span>Total fare</span><input type="number" min="0" step="0.01" @bind="Model.TotalFare" /></label>
+                <label><span>Booking status</span><select @bind="Model.Status">@foreach (var status in Enum.GetValues<BookingStatus>()) { <option value="@status">@Display(status)</option> }</select></label>
+                <label><span>Payment status *</span><input required @bind="Model.PaymentStatus" /></label>
+            </div></div>
+
+            <div class="editor-section"><h3>Notes</h3><div class="editor-grid">
+                <label><span>Customer notes</span><textarea rows="3" maxlength="2000" @bind="Model.CustomerNotes"></textarea></label>
+                <label><span>Internal notes</span><textarea rows="3" maxlength="4000" @bind="Model.InternalNotes"></textarea></label>
+            </div></div>
+
+            <footer><button class="secondary" type="button" @onclick="Cancel">Cancel</button><button class="primary" type="submit" disabled="@Saving">@(Saving ? "Saving..." : IsEdit ? "Save booking" : "Create booking")</button></footer>
+        </EditForm>
+    </section>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public BookingUpdateDto Model { get; set; } = new();
+    [Parameter, EditorRequired] public BookingLookupsDto Lookups { get; set; } = new();
+    [Parameter] public bool IsEdit { get; set; }
+    [Parameter] public string? BookingReference { get; set; }
+    [Parameter] public bool Saving { get; set; }
+    [Parameter] public IReadOnlyList<string> Errors { get; set; } = [];
+    [Parameter] public EventCallback OnSave { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private string PickupLocal => Model.PickupDateTime == default ? string.Empty : Model.PickupDateTime.LocalDateTime.ToString("yyyy-MM-ddTHH:mm");
+
+    private void UpdatePickup(ChangeEventArgs args)
+    {
+        if (DateTime.TryParse(args.Value?.ToString(), out var dateTime)) Model.PickupDateTime = new DateTimeOffset(DateTime.SpecifyKind(dateTime, DateTimeKind.Local));
+    }
+
+    private Task Submit() => OnSave.InvokeAsync();
+    private Task Cancel() => OnCancel.InvokeAsync();
+    private static string Display<T>(T value) where T : Enum => System.Text.RegularExpressions.Regex.Replace(value.ToString(), "([a-z])([A-Z])", "$1 $2");
+}

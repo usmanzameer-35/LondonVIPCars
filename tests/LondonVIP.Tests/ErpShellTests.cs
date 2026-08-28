@@ -39,6 +39,7 @@ public class ErpShellTests
 
     [Theory]
     [InlineData("/erp/quotes", "Quotes", "Development preview")]
+    [InlineData("/erp/bookings", "Bookings", "New booking")]
     [InlineData("/erp/leads", "Leads &amp; CRM", "Conversion reporting")]
     [InlineData("/erp/website-cms", "Website / CMS", "Homepage management")]
     [InlineData("/erp/insights", "Insights / Travel Hub", "TfL / TPH updates")]

@@ -1,0 +1,195 @@
+using LondonVIP.Infrastructure.Bookings;
+using LondonVIP.Infrastructure.Data;
+using LondonVIP.Shared.Bookings;
+using LondonVIP.Shared.Models;
+using LondonVIP.Shared.Tenancy;
+using Microsoft.EntityFrameworkCore;
+
+namespace LondonVIP.Api;
+
+public static class BookingEndpoints
+{
+    public static IEndpointRouteBuilder MapBookingEndpoints(this IEndpointRouteBuilder endpoints)
+    {
+        endpoints.MapGet("/api/bookings", GetBookingsAsync);
+        endpoints.MapGet("/api/bookings/lookups", GetLookupsAsync);
+        endpoints.MapGet("/api/bookings/{id:guid}", GetBookingAsync);
+        endpoints.MapPost("/api/bookings", CreateBookingAsync);
+        endpoints.MapPut("/api/bookings/{id:guid}", UpdateBookingAsync);
+        endpoints.MapPatch("/api/bookings/{id:guid}/status", UpdateStatusAsync);
+        return endpoints;
+    }
+
+    private static async Task<IResult> GetBookingsAsync(LondonVIPDbContext db, ICompanyContext company, CancellationToken cancellationToken)
+    {
+        var bookings = await db.Bookings.AsNoTracking()
+            .Where(booking => booking.CompanyId == company.CompanyId)
+            .Select(booking => new BookingListItemDto
+            {
+                Id = booking.Id,
+                BookingReference = booking.BookingReference,
+                PickupDateTime = booking.PickupDateTime,
+                CustomerName = booking.Customer.FirstName + " " + booking.Customer.LastName,
+                PickupAddress = booking.PickupAddress,
+                Destination = booking.Destination,
+                AirportCode = booking.Airport == null ? null : booking.Airport.Code,
+                FlightNumber = booking.FlightNumber,
+                VehicleType = booking.VehicleType,
+                TotalFare = booking.TotalFare,
+                Status = booking.Status,
+                PaymentStatus = booking.PaymentStatus,
+                DriverName = booking.Driver == null ? null : booking.Driver.FirstName + " " + booking.Driver.LastName
+            }).ToListAsync(cancellationToken);
+
+        bookings = bookings.OrderBy(booking => booking.PickupDateTime).ToList();
+
+        return Results.Ok(bookings);
+    }
+
+    private static async Task<IResult> GetBookingAsync(Guid id, LondonVIPDbContext db, ICompanyContext company, CancellationToken cancellationToken)
+    {
+        var booking = await BookingQuery(db, company.CompanyId).SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
+        return booking is null ? Results.NotFound() : Results.Ok(ToDetail(booking));
+    }
+
+    private static async Task<IResult> CreateBookingAsync(BookingCreateDto request, LondonVIPDbContext db, ICompanyContext company, CancellationToken cancellationToken)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var errors = BookingValidator.Validate(request, now);
+        await AddReferenceErrorsAsync(errors, request, db, company.CompanyId, cancellationToken);
+        if (errors.Count > 0) return Results.ValidationProblem(errors);
+
+        var booking = new Booking
+        {
+            Id = Guid.NewGuid(),
+            CompanyId = company.CompanyId,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+        booking.BookingReference = BookingReferenceGenerator.Generate(booking.Id, now);
+        Apply(request, booking);
+        db.Bookings.Add(booking);
+        await db.SaveChangesAsync(cancellationToken);
+
+        var created = await BookingQuery(db, company.CompanyId).SingleAsync(item => item.Id == booking.Id, cancellationToken);
+        return Results.Created($"/api/bookings/{booking.Id}", ToDetail(created));
+    }
+
+    private static async Task<IResult> UpdateBookingAsync(Guid id, BookingUpdateDto request, LondonVIPDbContext db, ICompanyContext company, CancellationToken cancellationToken)
+    {
+        var errors = BookingValidator.Validate(request, DateTimeOffset.UtcNow);
+        await AddReferenceErrorsAsync(errors, request, db, company.CompanyId, cancellationToken);
+        if (errors.Count > 0) return Results.ValidationProblem(errors);
+
+        var booking = await db.Bookings.SingleOrDefaultAsync(item => item.Id == id && item.CompanyId == company.CompanyId, cancellationToken);
+        if (booking is null) return Results.NotFound();
+
+        Apply(request, booking);
+        booking.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
+
+        var updated = await BookingQuery(db, company.CompanyId).SingleAsync(item => item.Id == id, cancellationToken);
+        return Results.Ok(ToDetail(updated));
+    }
+
+    private static async Task<IResult> UpdateStatusAsync(Guid id, BookingStatusUpdateDto request, LondonVIPDbContext db, ICompanyContext company, CancellationToken cancellationToken)
+    {
+        if (!Enum.IsDefined(request.Status))
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["status"] = ["Booking status is invalid."] });
+
+        var booking = await db.Bookings.SingleOrDefaultAsync(item => item.Id == id && item.CompanyId == company.CompanyId, cancellationToken);
+        if (booking is null) return Results.NotFound();
+
+        booking.Status = request.Status;
+        booking.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
+        return Results.Ok(new BookingStatusUpdateDto { Status = booking.Status });
+    }
+
+    private static async Task<IResult> GetLookupsAsync(LondonVIPDbContext db, ICompanyContext company, CancellationToken cancellationToken)
+    {
+        var result = new BookingLookupsDto
+        {
+            Customers = await db.Customers.AsNoTracking().Where(item => item.CompanyId == company.CompanyId && item.IsActive)
+                .OrderBy(item => item.LastName).ThenBy(item => item.FirstName)
+                .Select(item => new BookingLookupItemDto(item.Id, item.FirstName + " " + item.LastName)).ToListAsync(cancellationToken),
+            Drivers = await db.Drivers.AsNoTracking().Where(item => item.CompanyId == company.CompanyId && item.IsActive)
+                .OrderBy(item => item.LastName).ThenBy(item => item.FirstName)
+                .Select(item => new BookingLookupItemDto(item.Id, item.FirstName + " " + item.LastName)).ToListAsync(cancellationToken),
+            Airports = await db.Airports.AsNoTracking().Where(item => item.IsActive).OrderBy(item => item.Name)
+                .Select(item => new AirportLookupItemDto(item.Id, item.Code, item.Name)).ToListAsync(cancellationToken)
+        };
+        return Results.Ok(result);
+    }
+
+    private static IQueryable<Booking> BookingQuery(LondonVIPDbContext db, Guid companyId) =>
+        db.Bookings.AsNoTracking()
+            .Include(item => item.Customer).Include(item => item.Driver).Include(item => item.Airport)
+            .Where(item => item.CompanyId == companyId);
+
+    private static BookingDetailDto ToDetail(Booking booking) => new()
+    {
+        Id = booking.Id,
+        BookingReference = booking.BookingReference,
+        CustomerId = booking.CustomerId,
+        CustomerName = $"{booking.Customer.FirstName} {booking.Customer.LastName}".Trim(),
+        PickupAddress = booking.PickupAddress,
+        Destination = booking.Destination,
+        PickupDateTime = booking.PickupDateTime,
+        PassengerCount = booking.PassengerCount,
+        LuggageCount = booking.LuggageCount,
+        VehicleType = booking.VehicleType,
+        AirportId = booking.AirportId,
+        AirportCode = booking.Airport?.Code,
+        AirportName = booking.Airport?.Name,
+        FlightNumber = booking.FlightNumber,
+        IsAirportPickup = booking.IsAirportPickup,
+        IsMeetAndGreet = booking.IsMeetAndGreet,
+        CustomerNotes = booking.CustomerNotes,
+        InternalNotes = booking.InternalNotes,
+        BaseFare = booking.BaseFare,
+        Extras = booking.Extras,
+        TotalFare = booking.TotalFare,
+        DriverId = booking.DriverId,
+        DriverName = booking.Driver is null ? null : $"{booking.Driver.FirstName} {booking.Driver.LastName}".Trim(),
+        Status = booking.Status,
+        PaymentStatus = booking.PaymentStatus,
+        CreatedAt = booking.CreatedAt,
+        UpdatedAt = booking.UpdatedAt
+    };
+
+    private static void Apply(BookingCreateDto request, Booking booking)
+    {
+        booking.CustomerId = request.CustomerId;
+        booking.PickupAddress = request.PickupAddress.Trim();
+        booking.Destination = request.Destination.Trim();
+        booking.PickupDateTime = request.PickupDateTime;
+        booking.PassengerCount = request.PassengerCount;
+        booking.LuggageCount = request.LuggageCount;
+        booking.VehicleType = request.VehicleType;
+        booking.AirportId = request.AirportId;
+        booking.FlightNumber = NullIfWhiteSpace(request.FlightNumber)?.ToUpperInvariant();
+        booking.IsAirportPickup = request.IsAirportPickup;
+        booking.IsMeetAndGreet = request.IsMeetAndGreet;
+        booking.CustomerNotes = NullIfWhiteSpace(request.CustomerNotes);
+        booking.InternalNotes = NullIfWhiteSpace(request.InternalNotes);
+        booking.BaseFare = request.BaseFare;
+        booking.Extras = request.Extras;
+        booking.TotalFare = request.TotalFare;
+        booking.DriverId = request.DriverId;
+        booking.Status = request.Status;
+        booking.PaymentStatus = request.PaymentStatus.Trim();
+    }
+
+    private static async Task AddReferenceErrorsAsync(Dictionary<string, string[]> errors, BookingCreateDto request, LondonVIPDbContext db, Guid companyId, CancellationToken cancellationToken)
+    {
+        if (request.CustomerId != Guid.Empty && !await db.Customers.AnyAsync(item => item.Id == request.CustomerId && item.CompanyId == companyId && item.IsActive, cancellationToken))
+            errors["customerId"] = ["Customer was not found for the current company."];
+        if (request.DriverId is { } driverId && !await db.Drivers.AnyAsync(item => item.Id == driverId && item.CompanyId == companyId && item.IsActive, cancellationToken))
+            errors["driverId"] = ["Driver was not found for the current company."];
+        if (request.AirportId is { } airportId && !await db.Airports.AnyAsync(item => item.Id == airportId && item.IsActive, cancellationToken))
+            errors["airportId"] = ["Airport was not found."];
+    }
+
+    private static string? NullIfWhiteSpace(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+}
