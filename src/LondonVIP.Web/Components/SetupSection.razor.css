@@ -1,0 +1,7 @@
+.setup-section { padding-top: 1.5rem; scroll-margin-top: 5rem; }
+.setup-section > header { display: grid; margin-bottom: 1rem; grid-template-columns: 2rem 1fr; gap: .75rem; }
+.setup-section > header > span { padding-top: .2rem; color: #b18436; font: italic .85rem Georgia, serif; }
+.setup-section h2 { margin: 0 0 .25rem; font: 1.35rem Georgia, serif; letter-spacing: -.02em; }
+.setup-section header p { margin: 0; color: #71807b; font-size: .72rem; }
+.setup-card { padding: 1.25rem; border: 1px solid #dce3df; border-radius: .7rem; background: white; box-shadow: 0 7px 24px rgba(20,47,41,.04); }
+@media (min-width: 650px) { .setup-section { padding-top: 2rem; } .setup-card { padding: 1.75rem; } }

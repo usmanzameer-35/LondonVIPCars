@@ -1,0 +1,9 @@
+<label class="setup-field @(Wide ? "wide" : null)"><span>@Label @if (Required) { <b aria-label="required">*</b> } @if (!string.IsNullOrEmpty(Hint)) { <small>@Hint</small> }</span>@ChildContent</label>
+
+@code {
+    [Parameter, EditorRequired] public string Label { get; set; } = string.Empty;
+    [Parameter] public string? Hint { get; set; }
+    [Parameter] public bool Required { get; set; }
+    [Parameter] public bool Wide { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

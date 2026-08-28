@@ -1,0 +1,12 @@
+<section id="@Id" class="setup-section">
+    <header><span>@Number</span><div><h2>@Title</h2><p>@Description</p></div></header>
+    <div class="setup-card">@ChildContent</div>
+</section>
+
+@code {
+    [Parameter, EditorRequired] public string Id { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Number { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter] public string Description { get; set; } = string.Empty;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

@@ -14,7 +14,7 @@ public static class Program
         CreateApp(args).Run();
     }
 
-    public static WebApplication CreateApp(string[] args)
+    public static WebApplication CreateApp(string[] args, Action<IServiceCollection>? configureServices = null)
     {
         var builder = WebApplication.CreateBuilder(args);
 
@@ -25,6 +25,7 @@ public static class Program
                 ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.")));
         builder.Services.AddScoped<IPricingService, PricingService>();
         builder.Services.AddSingleton<ICompanyContext, DefaultCompanyContext>();
+        configureServices?.Invoke(builder.Services);
 
         var app = builder.Build();
 
@@ -49,6 +50,8 @@ public static class Program
             var quote = await pricingService.CalculateQuoteAsync(request, cancellationToken);
             return Results.Ok(quote);
         });
+
+        app.MapCompanySetupEndpoints();
 
         var summaries = new[]
         {

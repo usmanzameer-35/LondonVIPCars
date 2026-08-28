@@ -1,0 +1,141 @@
+@page "/erp/company-setup"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using LondonVIP.Shared.CompanySetup
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Company Setup | London VIP Cars ERP</PageTitle>
+
+<div class="setup-page">
+    <header class="setup-header">
+        <div><span class="setup-eyebrow">Configuration</span><h1>Company setup</h1><p>Manage the company details and operating defaults used across London VIP Cars.</p></div>
+        <div class="save-area"><span class="save-state @StateClass" role="status">@StateMessage</span><button class="save-button" type="submit" form="company-setup-form" disabled="@IsLoading">@(IsSaving ? "Saving..." : "Save changes")</button></div>
+    </header>
+
+    <nav class="section-tabs" aria-label="Company setup sections"><a href="#profile">Profile</a><a href="#branding">Branding</a><a href="#operations">Operations</a><a href="#invoicing">Invoicing</a><a href="#website">Website</a></nav>
+
+    @if (IsLoading)
+    {
+        <div class="setup-notice" role="status">Loading company setup...</div>
+    }
+    else if (!string.IsNullOrEmpty(LoadError))
+    {
+        <div class="setup-notice error" role="alert">@LoadError</div>
+    }
+    else
+    {
+        <EditForm id="company-setup-form" Model="Setup" OnSubmit="SaveAsync">
+            @if (ValidationErrors.Count > 0)
+            {
+                <div class="validation-panel" role="alert"><strong>Please review the highlighted information.</strong><ul>@foreach (var error in ValidationErrors) { <li>@error</li> }</ul></div>
+            }
+
+            <SetupSection Id="profile" Number="01" Title="Company profile" Description="The legal and contact details used throughout the platform.">
+                <div class="form-grid">
+                    <Field Label="Trading name" Required="true"><input required @bind="Setup.Profile.TradingName" @bind:after="MarkDirty" /></Field>
+                    <Field Label="Legal name" Required="true"><input required @bind="Setup.Profile.LegalName" @bind:after="MarkDirty" /></Field>
+                    <Field Label="Email" Required="true"><input type="email" required @bind="Setup.Profile.Email" @bind:after="MarkDirty" /></Field>
+                    <Field Label="Phone" Required="true"><input type="tel" required @bind="Setup.Profile.Phone" @bind:after="MarkDirty" /></Field>
+                    <Field Label="Website"><input type="url" placeholder="https://" @bind="Setup.Profile.Website" @bind:after="MarkDirty" /></Field>
+                    <Field Label="Address" Required="true" Wide="true"><input required @bind="Setup.Profile.Address" @bind:after="MarkDirty" /></Field>
+                    <Field Label="City" Required="true"><input required @bind="Setup.Profile.City" @bind:after="MarkDirty" /></Field>
+                    <Field Label="Postcode" Required="true"><input required @bind="Setup.Profile.Postcode" @bind:after="MarkDirty" /></Field>
+                    <Field Label="Country" Required="true"><input required @bind="Setup.Profile.Country" @bind:after="MarkDirty" /></Field>
+                    <Field Label="Time zone" Required="true"><input required placeholder="Europe/London" @bind="Setup.Profile.TimeZone" @bind:after="MarkDirty" /></Field>
+                    <Field Label="Currency" Required="true"><input required maxlength="3" placeholder="GBP" @bind="Setup.Profile.Currency" @bind:after="MarkDirty" /></Field>
+                </div>
+            </SetupSection>
+
+            <SetupSection Id="branding" Number="02" Title="Branding" Description="Core brand colours and image locations used by customer-facing experiences.">
+                <div class="form-grid colour-grid">
+                    <Field Label="Primary colour"><div class="colour-input"><input type="color" @bind="Setup.Branding.PrimaryColour" @bind:after="MarkDirty" /><input aria-label="Primary colour value" @bind="Setup.Branding.PrimaryColour" @bind:after="MarkDirty" /></div></Field>
+                    <Field Label="Secondary colour"><div class="colour-input"><input type="color" @bind="Setup.Branding.SecondaryColour" @bind:after="MarkDirty" /><input aria-label="Secondary colour value" @bind="Setup.Branding.SecondaryColour" @bind:after="MarkDirty" /></div></Field>
+                    <Field Label="Accent colour"><div class="colour-input"><input type="color" @bind="Setup.Branding.AccentColour" @bind:after="MarkDirty" /><input aria-label="Accent colour value" @bind="Setup.Branding.AccentColour" @bind:after="MarkDirty" /></div></Field>
+                    <Field Label="Logo URL"><input type="url" placeholder="https://" @bind="Setup.Branding.LogoUrl" @bind:after="MarkDirty" /></Field>
+                    <Field Label="Favicon URL"><input type="url" placeholder="https://" @bind="Setup.Branding.FaviconUrl" @bind:after="MarkDirty" /></Field>
+                </div>
+            </SetupSection>
+
+            <SetupSection Id="operations" Number="03" Title="Operations" Description="Defaults that guide quoting, waiting time and driver arrangements.">
+                <div class="form-grid">
+                    <Field Label="Minimum booking notice" Hint="Minutes"><input type="number" min="0" max="10080" @bind="Setup.Operations.MinimumBookingNoticeMinutes" @bind:after="MarkDirty" /></Field>
+                    <Field Label="Free airport waiting" Hint="Minutes"><input type="number" min="0" max="1440" @bind="Setup.Operations.FreeAirportWaitingMinutes" @bind:after="MarkDirty" /></Field>
+                    <Field Label="Waiting charge per hour"><input type="number" min="0" max="10000" step="0.01" @bind="Setup.Operations.WaitingChargePerHour" @bind:after="MarkDirty" /></Field>
+                    <Field Label="Airport pickup supplement"><input type="number" min="0" max="10000" step="0.01" @bind="Setup.Operations.DefaultAirportPickupSupplement" @bind:after="MarkDirty" /></Field>
+                    <Field Label="Driver commission" Hint="Percentage"><input type="number" min="0" max="100" step="0.01" @bind="Setup.Operations.DriverCommissionPercentage" @bind:after="MarkDirty" /></Field>
+                    <Field Label="Driver weekly amount"><input type="number" min="0" max="10000" step="0.01" @bind="Setup.Operations.DriverWeeklySubscriptionAmount" @bind:after="MarkDirty" /></Field>
+                    <Field Label="Default language" Required="true"><input required placeholder="en-GB" @bind="Setup.Operations.DefaultLanguage" @bind:after="MarkDirty" /></Field>
+                    <label class="toggle-row"><input type="checkbox" @bind="Setup.Operations.MeetAndGreetEnabled" @bind:after="MarkDirty" /><span><strong>Meet-and-greet enabled</strong><small>Allow this service option in company operations.</small></span></label>
+                </div>
+            </SetupSection>
+
+            <SetupSection Id="invoicing" Number="04" Title="Invoicing" Description="Company-wide tax and invoice-number defaults.">
+                <div class="form-grid">
+                    <label class="toggle-row"><input type="checkbox" @bind="Setup.Invoice.VatEnabled" @bind:after="MarkDirty" /><span><strong>VAT enabled</strong><small>Apply VAT configuration to future invoices.</small></span></label>
+                    <Field Label="VAT rate" Hint="Percentage"><input type="number" min="0" max="100" step="0.01" @bind="Setup.Invoice.VatRate" @bind:after="MarkDirty" /></Field>
+                    <Field Label="Invoice prefix" Required="true"><input required maxlength="20" @bind="Setup.Invoice.InvoicePrefix" @bind:after="MarkDirty" /></Field>
+                </div>
+            </SetupSection>
+
+            <SetupSection Id="website" Number="05" Title="Website" Description="Text shown in the customer website title and brand message.">
+                <div class="form-grid"><Field Label="Website title" Required="true"><input required @bind="Setup.Website.WebsiteTitle" @bind:after="MarkDirty" /></Field><Field Label="Website tagline" Wide="true"><textarea rows="3" @bind="Setup.Website.WebsiteTagline" @bind:after="MarkDirty"></textarea></Field></div>
+            </SetupSection>
+
+            <div class="bottom-actions"><span class="save-state @StateClass">@StateMessage</span><button class="save-button" type="submit" disabled="@IsSaving">@(IsSaving ? "Saving..." : "Save changes")</button></div>
+        </EditForm>
+    }
+</div>
+
+@code {
+    private CompanySetupDto Setup { get; set; } = new();
+    private bool IsLoading { get; set; } = true;
+    private bool IsSaving { get; set; }
+    private bool HasUnsavedChanges { get; set; }
+    private bool Saved { get; set; }
+    private string? LoadError { get; set; }
+    private List<string> ValidationErrors { get; } = [];
+    private string StateMessage => IsSaving ? "Saving changes..." : HasUnsavedChanges ? "Unsaved changes" : Saved ? "All changes saved" : "Up to date";
+    private string StateClass => HasUnsavedChanges ? "unsaved" : Saved ? "saved" : string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            Setup = await Client().GetFromJsonAsync<CompanySetupDto>("api/company/setup") ?? new();
+        }
+        catch (Exception)
+        {
+            LoadError = "Company setup could not be loaded. Make sure LondonVIP.Api is running on the configured development address.";
+        }
+        finally { IsLoading = false; }
+    }
+
+    private void MarkDirty() { HasUnsavedChanges = true; Saved = false; }
+
+    private async Task SaveAsync()
+    {
+        IsSaving = true;
+        ValidationErrors.Clear();
+        try
+        {
+            using var response = await Client().PutAsJsonAsync("api/company/setup", Setup);
+            if (response.IsSuccessStatusCode)
+            {
+                Setup = await response.Content.ReadFromJsonAsync<CompanySetupDto>() ?? Setup;
+                HasUnsavedChanges = false;
+                Saved = true;
+            }
+            else if ((int)response.StatusCode == 400)
+            {
+                var problem = await response.Content.ReadFromJsonAsync<ValidationResponse>();
+                ValidationErrors.AddRange(problem?.Errors.SelectMany(item => item.Value) ?? ["Please check the entered values."]);
+            }
+            else ValidationErrors.Add("The company setup could not be saved.");
+        }
+        catch (Exception) { ValidationErrors.Add("The API could not be reached. No changes were saved."); }
+        finally { IsSaving = false; }
+    }
+
+    private HttpClient Client() => HttpClientFactory.CreateClient("LondonVIP.Api");
+    private sealed class ValidationResponse { public Dictionary<string, string[]> Errors { get; set; } = []; }
+}
