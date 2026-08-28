@@ -32,5 +32,35 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
             entity.Property(rule => rule.AirportPickupSupplement).HasPrecision(18, 2);
             entity.Property(rule => rule.WaitingChargePerHour).HasPrecision(18, 2);
         });
+
+        modelBuilder.Entity<Airport>().HasData(
+            new Airport
+            {
+                Id = new Guid("6cbe8f65-2943-4ce1-91fe-f1966d37b334"),
+                Code = "LHR",
+                Name = "Heathrow",
+                IsActive = true
+            },
+            new Airport
+            {
+                Id = new Guid("a816bb40-d225-4c24-bdbc-a7c2b96f6b9b"),
+                Code = "LGW",
+                Name = "Gatwick",
+                IsActive = true
+            },
+            new Airport
+            {
+                Id = new Guid("12cb02c5-a575-4a50-ab17-b92d81dd331e"),
+                Code = "LTN",
+                Name = "Luton",
+                IsActive = true
+            },
+            new Airport
+            {
+                Id = new Guid("1e83d9e4-d35a-40f9-9a4e-fba1ee003b55"),
+                Code = "STN",
+                Name = "Stansted",
+                IsActive = true
+            });
     }
 }
