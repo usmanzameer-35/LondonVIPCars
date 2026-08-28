@@ -1,6 +1,8 @@
 using LondonVIP.Infrastructure.Data;
 using LondonVIP.Infrastructure.Pricing;
 using LondonVIP.Shared.Pricing;
+using LondonVIP.Infrastructure.Tenancy;
+using LondonVIP.Shared.Tenancy;
 using Microsoft.EntityFrameworkCore;
 
 namespace LondonVIP.Api;
@@ -22,6 +24,7 @@ public static class Program
                 builder.Configuration.GetConnectionString("DefaultConnection")
                 ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.")));
         builder.Services.AddScoped<IPricingService, PricingService>();
+        builder.Services.AddSingleton<ICompanyContext, DefaultCompanyContext>();
 
         var app = builder.Build();
 

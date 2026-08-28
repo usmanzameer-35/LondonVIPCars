@@ -4,6 +4,10 @@ public class PricingRule
 {
     public Guid Id { get; set; }
 
+    public Guid CompanyId { get; set; }
+
+    public Company Company { get; set; } = null!;
+
     public Guid? AirportId { get; set; }
 
     public VehicleType VehicleType { get; set; }

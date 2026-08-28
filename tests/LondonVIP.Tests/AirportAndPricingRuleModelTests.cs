@@ -27,10 +27,12 @@ public class AirportAndPricingRuleModelTests
     public void PricingRule_CanBeInstantiated()
     {
         var ruleId = Guid.NewGuid();
+        var companyId = Guid.NewGuid();
 
         var pricingRule = new PricingRule
         {
             Id = ruleId,
+            CompanyId = companyId,
             AirportId = null,
             VehicleType = VehicleType.Saloon,
             BasePrice = 0m,
@@ -41,6 +43,7 @@ public class AirportAndPricingRuleModelTests
         };
 
         Assert.Equal(ruleId, pricingRule.Id);
+        Assert.Equal(companyId, pricingRule.CompanyId);
         Assert.Null(pricingRule.AirportId);
         Assert.Equal(VehicleType.Saloon, pricingRule.VehicleType);
         Assert.Equal(0m, pricingRule.BasePrice);

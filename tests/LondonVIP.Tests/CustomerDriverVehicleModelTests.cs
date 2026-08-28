@@ -8,11 +8,13 @@ public class CustomerDriverVehicleModelTests
     public void Customer_CanBeInstantiated()
     {
         var customerId = Guid.NewGuid();
+        var companyId = Guid.NewGuid();
         var createdAt = DateTimeOffset.UtcNow;
 
         var customer = new Customer
         {
             Id = customerId,
+            CompanyId = companyId,
             FirstName = "Test",
             LastName = "Customer",
             Email = "customer@example.test",
@@ -22,6 +24,7 @@ public class CustomerDriverVehicleModelTests
         };
 
         Assert.Equal(customerId, customer.Id);
+        Assert.Equal(companyId, customer.CompanyId);
         Assert.Equal("Test", customer.FirstName);
         Assert.Equal("Customer", customer.LastName);
         Assert.Equal("customer@example.test", customer.Email);
@@ -34,10 +37,12 @@ public class CustomerDriverVehicleModelTests
     public void Driver_CanBeInstantiated()
     {
         var driverId = Guid.NewGuid();
+        var companyId = Guid.NewGuid();
 
         var driver = new Driver
         {
             Id = driverId,
+            CompanyId = companyId,
             FirstName = "Test",
             LastName = "Driver",
             Phone = "0000000000",
@@ -47,6 +52,7 @@ public class CustomerDriverVehicleModelTests
         };
 
         Assert.Equal(driverId, driver.Id);
+        Assert.Equal(companyId, driver.CompanyId);
         Assert.Equal("Test", driver.FirstName);
         Assert.Equal("Driver", driver.LastName);
         Assert.Equal("0000000000", driver.Phone);
@@ -59,10 +65,12 @@ public class CustomerDriverVehicleModelTests
     public void Vehicle_CanBeInstantiated()
     {
         var vehicleId = Guid.NewGuid();
+        var companyId = Guid.NewGuid();
 
         var vehicle = new Vehicle
         {
             Id = vehicleId,
+            CompanyId = companyId,
             RegistrationNumber = "TEST-REG",
             Make = "Test Make",
             Model = "Test Model",
@@ -73,6 +81,7 @@ public class CustomerDriverVehicleModelTests
         };
 
         Assert.Equal(vehicleId, vehicle.Id);
+        Assert.Equal(companyId, vehicle.CompanyId);
         Assert.Equal("TEST-REG", vehicle.RegistrationNumber);
         Assert.Equal("Test Make", vehicle.Make);
         Assert.Equal("Test Model", vehicle.Model);

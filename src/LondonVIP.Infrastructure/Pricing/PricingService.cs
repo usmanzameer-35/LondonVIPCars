@@ -1,10 +1,11 @@
 using LondonVIP.Infrastructure.Data;
 using LondonVIP.Shared.Pricing;
 using Microsoft.EntityFrameworkCore;
+using LondonVIP.Shared.Tenancy;
 
 namespace LondonVIP.Infrastructure.Pricing;
 
-public class PricingService(LondonVIPDbContext dbContext) : IPricingService
+public class PricingService(LondonVIPDbContext dbContext, ICompanyContext companyContext) : IPricingService
 {
     public async Task<QuoteResponse> CalculateQuoteAsync(
         QuoteRequest request,
@@ -14,6 +15,7 @@ public class PricingService(LondonVIPDbContext dbContext) : IPricingService
             .AsNoTracking()
             .FirstOrDefaultAsync(
                 pricingRule => pricingRule.IsActive
+                    && pricingRule.CompanyId == companyContext.CompanyId
                     && pricingRule.AirportId == request.AirportId
                     && pricingRule.VehicleType == request.VehicleType,
                 cancellationToken);

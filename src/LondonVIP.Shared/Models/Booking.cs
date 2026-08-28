@@ -4,6 +4,10 @@ public class Booking
 {
     public Guid Id { get; set; }
 
+    public Guid CompanyId { get; set; }
+
+    public Company Company { get; set; } = null!;
+
     public Guid CustomerId { get; set; }
 
     public string PickupAddress { get; set; } = string.Empty;

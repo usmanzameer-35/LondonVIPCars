@@ -4,6 +4,10 @@ public class Vehicle
 {
     public Guid Id { get; set; }
 
+    public Guid CompanyId { get; set; }
+
+    public Company Company { get; set; } = null!;
+
     public string RegistrationNumber { get; set; } = string.Empty;
 
     public string Make { get; set; } = string.Empty;

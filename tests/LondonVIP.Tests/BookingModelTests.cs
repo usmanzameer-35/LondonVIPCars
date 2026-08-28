@@ -24,6 +24,7 @@ public class BookingModelTests
     public void Booking_CanBeInstantiated()
     {
         var bookingId = Guid.NewGuid();
+        var companyId = Guid.NewGuid();
         var customerId = Guid.NewGuid();
         var pickupDateTime = DateTimeOffset.UtcNow.AddDays(1);
         var createdAt = DateTimeOffset.UtcNow;
@@ -31,6 +32,7 @@ public class BookingModelTests
         var booking = new Booking
         {
             Id = bookingId,
+            CompanyId = companyId,
             CustomerId = customerId,
             PickupAddress = "Heathrow Airport",
             Destination = "Central London",
@@ -49,6 +51,7 @@ public class BookingModelTests
         };
 
         Assert.Equal(bookingId, booking.Id);
+        Assert.Equal(companyId, booking.CompanyId);
         Assert.Equal(customerId, booking.CustomerId);
         Assert.Equal("Heathrow Airport", booking.PickupAddress);
         Assert.Equal("Central London", booking.Destination);
