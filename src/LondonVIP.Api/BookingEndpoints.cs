@@ -3,6 +3,8 @@ using LondonVIP.Infrastructure.Data;
 using LondonVIP.Shared.Bookings;
 using LondonVIP.Shared.Models;
 using LondonVIP.Shared.Tenancy;
+using LondonVIP.Infrastructure.Security;
+using LondonVIP.Shared.Security;
 using Microsoft.EntityFrameworkCore;
 
 namespace LondonVIP.Api;
@@ -11,12 +13,13 @@ public static class BookingEndpoints
 {
     public static IEndpointRouteBuilder MapBookingEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/api/bookings", GetBookingsAsync);
-        endpoints.MapGet("/api/bookings/lookups", GetLookupsAsync);
-        endpoints.MapGet("/api/bookings/{id:guid}", GetBookingAsync);
-        endpoints.MapPost("/api/bookings", CreateBookingAsync);
-        endpoints.MapPut("/api/bookings/{id:guid}", UpdateBookingAsync);
-        endpoints.MapPatch("/api/bookings/{id:guid}/status", UpdateStatusAsync);
+        var group = endpoints.MapGroup("/api/bookings").RequireAuthorization(SecurityPolicies.BookingOperations).RequireRateLimiting("operations");
+        group.MapGet("", GetBookingsAsync);
+        group.MapGet("/lookups", GetLookupsAsync);
+        group.MapGet("/{id:guid}", GetBookingAsync);
+        group.MapPost("", CreateBookingAsync);
+        group.MapPut("/{id:guid}", UpdateBookingAsync);
+        group.MapPatch("/{id:guid}/status", UpdateStatusAsync);
         return endpoints;
     }
 
@@ -52,7 +55,7 @@ public static class BookingEndpoints
         return booking is null ? Results.NotFound() : Results.Ok(ToDetail(booking));
     }
 
-    private static async Task<IResult> CreateBookingAsync(BookingCreateDto request, LondonVIPDbContext db, ICompanyContext company, CancellationToken cancellationToken)
+    private static async Task<IResult> CreateBookingAsync(BookingCreateDto request, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;
         var errors = BookingValidator.Validate(request, now);
@@ -70,12 +73,13 @@ public static class BookingEndpoints
         Apply(request, booking);
         db.Bookings.Add(booking);
         await db.SaveChangesAsync(cancellationToken);
+        await audit.WriteAsync("BookingCreated", "Booking", "Succeeded", SecurityEventSeverity.Information, "Booking created.", "Booking", booking.Id.ToString(), company.CompanyId, cancellationToken);
 
         var created = await BookingQuery(db, company.CompanyId).SingleAsync(item => item.Id == booking.Id, cancellationToken);
         return Results.Created($"/api/bookings/{booking.Id}", ToDetail(created));
     }
 
-    private static async Task<IResult> UpdateBookingAsync(Guid id, BookingUpdateDto request, LondonVIPDbContext db, ICompanyContext company, CancellationToken cancellationToken)
+    private static async Task<IResult> UpdateBookingAsync(Guid id, BookingUpdateDto request, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, CancellationToken cancellationToken)
     {
         var errors = BookingValidator.Validate(request, DateTimeOffset.UtcNow);
         await AddReferenceErrorsAsync(errors, request, db, company.CompanyId, cancellationToken);
@@ -87,12 +91,13 @@ public static class BookingEndpoints
         Apply(request, booking);
         booking.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
+        await audit.WriteAsync("BookingUpdated", "Booking", "Succeeded", SecurityEventSeverity.Information, "Booking operational details updated.", "Booking", id.ToString(), company.CompanyId, cancellationToken);
 
         var updated = await BookingQuery(db, company.CompanyId).SingleAsync(item => item.Id == id, cancellationToken);
         return Results.Ok(ToDetail(updated));
     }
 
-    private static async Task<IResult> UpdateStatusAsync(Guid id, BookingStatusUpdateDto request, LondonVIPDbContext db, ICompanyContext company, CancellationToken cancellationToken)
+    private static async Task<IResult> UpdateStatusAsync(Guid id, BookingStatusUpdateDto request, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, CancellationToken cancellationToken)
     {
         if (!Enum.IsDefined(request.Status))
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["status"] = ["Booking status is invalid."] });
@@ -103,6 +108,7 @@ public static class BookingEndpoints
         booking.Status = request.Status;
         booking.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
+        await audit.WriteAsync("BookingStatusChanged", "Booking", "Succeeded", SecurityEventSeverity.Information, $"Booking status changed to {booking.Status}.", "Booking", id.ToString(), company.CompanyId, cancellationToken);
         return Results.Ok(new BookingStatusUpdateDto { Status = booking.Status });
     }
 

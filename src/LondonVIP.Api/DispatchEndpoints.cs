@@ -3,6 +3,8 @@ using LondonVIP.Shared.Dispatch;
 using LondonVIP.Shared.Models;
 using LondonVIP.Shared.Tenancy;
 using Microsoft.EntityFrameworkCore;
+using LondonVIP.Infrastructure.Security;
+using LondonVIP.Shared.Security;
 
 namespace LondonVIP.Api;
 
@@ -13,12 +15,13 @@ public static class DispatchEndpoints
 
     public static IEndpointRouteBuilder MapDispatchEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/api/dispatch", GetBoardAsync);
-        endpoints.MapGet("/api/dispatch/unassigned", GetUnassignedAsync);
-        endpoints.MapGet("/api/dispatch/drivers", GetDriversAsync);
-        endpoints.MapPatch("/api/dispatch/{bookingId:guid}/assign", AssignDriverAsync);
-        endpoints.MapPatch("/api/dispatch/{bookingId:guid}/unassign", UnassignDriverAsync);
-        endpoints.MapPatch("/api/dispatch/{bookingId:guid}/status", UpdateStatusAsync);
+        var group = endpoints.MapGroup("/api/dispatch").RequireAuthorization(SecurityPolicies.DispatchOperations).RequireRateLimiting("operations");
+        group.MapGet("", GetBoardAsync);
+        group.MapGet("/unassigned", GetUnassignedAsync);
+        group.MapGet("/drivers", GetDriversAsync);
+        group.MapPatch("/{bookingId:guid}/assign", AssignDriverAsync);
+        group.MapPatch("/{bookingId:guid}/unassign", UnassignDriverAsync);
+        group.MapPatch("/{bookingId:guid}/status", UpdateStatusAsync);
         return endpoints;
     }
 
@@ -53,17 +56,18 @@ public static class DispatchEndpoints
         AssignDriverRequest request,
         LondonVIPDbContext db,
         ICompanyContext company,
+        IAuditService audit,
         CancellationToken cancellationToken)
     {
         var booking = await db.Bookings.SingleOrDefaultAsync(item => item.Id == bookingId && item.CompanyId == company.CompanyId, cancellationToken);
-        if (booking is null) return Results.NotFound();
+        if (booking is null) { await AuditCrossTenantAsync(db, audit, bookingId, company.CompanyId, cancellationToken); return Results.NotFound(); }
         if (booking.Status is not (BookingStatus.Confirmed or BookingStatus.Assigned))
             return Conflict("Only confirmed or assigned bookings can be assigned or reassigned.");
         if (request.DriverId == Guid.Empty)
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["driverId"] = ["Driver is required."] });
 
         var driver = await db.Drivers.AsNoTracking().SingleOrDefaultAsync(item => item.Id == request.DriverId && item.CompanyId == company.CompanyId, cancellationToken);
-        if (driver is null) return Results.NotFound();
+        if (driver is null) { await AuditCrossTenantAsync(db, audit, request.DriverId, company.CompanyId, cancellationToken, "Driver"); return Results.NotFound(); }
         if (!driver.IsActive) return Conflict("The selected driver is inactive.");
 
         if (driver.VehicleId is { } vehicleId)
@@ -72,10 +76,12 @@ public static class DispatchEndpoints
             if (!validVehicle) return Conflict("The driver's vehicle is unavailable or does not belong to the current company.");
         }
 
+        var wasAssigned = booking.DriverId.HasValue;
         booking.DriverId = driver.Id;
         booking.Status = BookingStatus.Assigned;
         booking.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
+        await audit.WriteAsync(wasAssigned ? "DriverReassigned" : "DriverAssigned", "Dispatch", "Succeeded", SecurityEventSeverity.Information, "Driver assigned to booking.", "Booking", booking.Id.ToString(), company.CompanyId, cancellationToken);
         return Results.Ok(await LoadItemAsync(db, booking.Id, company.CompanyId, cancellationToken));
     }
 
@@ -84,10 +90,11 @@ public static class DispatchEndpoints
         UnassignDriverRequest request,
         LondonVIPDbContext db,
         ICompanyContext company,
+        IAuditService audit,
         CancellationToken cancellationToken)
     {
         var booking = await db.Bookings.SingleOrDefaultAsync(item => item.Id == bookingId && item.CompanyId == company.CompanyId, cancellationToken);
-        if (booking is null) return Results.NotFound();
+        if (booking is null) { await AuditCrossTenantAsync(db, audit, bookingId, company.CompanyId, cancellationToken); return Results.NotFound(); }
         if (booking.Status != BookingStatus.Assigned || booking.DriverId is null)
             return Conflict("Only an assigned booking can be unassigned before the journey starts.");
 
@@ -95,6 +102,7 @@ public static class DispatchEndpoints
         booking.Status = BookingStatus.Confirmed;
         booking.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
+        await audit.WriteAsync("DriverUnassigned", "Dispatch", "Succeeded", SecurityEventSeverity.Information, "Driver unassigned from booking.", "Booking", booking.Id.ToString(), company.CompanyId, cancellationToken);
         return Results.Ok(await LoadItemAsync(db, booking.Id, company.CompanyId, cancellationToken));
     }
 
@@ -103,16 +111,19 @@ public static class DispatchEndpoints
         DispatchStatusUpdateDto request,
         LondonVIPDbContext db,
         ICompanyContext company,
+        IAuditService audit,
         CancellationToken cancellationToken)
     {
+        if (!Enum.IsDefined(request.Status)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["status"] = ["Dispatch status is invalid."] });
         var booking = await db.Bookings.SingleOrDefaultAsync(item => item.Id == bookingId && item.CompanyId == company.CompanyId, cancellationToken);
-        if (booking is null) return Results.NotFound();
+        if (booking is null) { await AuditCrossTenantAsync(db, audit, bookingId, company.CompanyId, cancellationToken); return Results.NotFound(); }
         if (!IsAllowedTransition(booking.Status, request.Status, booking.DriverId is not null))
             return Conflict($"Status cannot move from {booking.Status} to {request.Status} in dispatch.");
 
         booking.Status = request.Status;
         booking.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
+        await audit.WriteAsync("DispatchStatusChanged", "Dispatch", "Succeeded", SecurityEventSeverity.Information, $"Dispatch status changed to {booking.Status}.", "Booking", booking.Id.ToString(), company.CompanyId, cancellationToken);
 
         if (OperationalStatuses.Contains(booking.Status))
             return Results.Ok(await LoadItemAsync(db, booking.Id, company.CompanyId, cancellationToken));
@@ -191,4 +202,12 @@ public static class DispatchEndpoints
     }
 
     private static IResult Conflict(string message) => Results.Conflict(new { message });
+
+    private static async Task AuditCrossTenantAsync(LondonVIPDbContext db, IAuditService audit, Guid id, Guid companyId, CancellationToken cancellationToken, string resource = "Booking")
+    {
+        var existsElsewhere = resource == "Driver"
+            ? await db.Drivers.AnyAsync(item => item.Id == id && item.CompanyId != companyId, cancellationToken)
+            : await db.Bookings.AnyAsync(item => item.Id == id && item.CompanyId != companyId, cancellationToken);
+        if (existsElsewhere) await audit.WriteAsync("CrossTenantAccessAttempt", "Authorization", "Denied", SecurityEventSeverity.High, $"Cross-tenant {resource.ToLowerInvariant()} access was blocked.", resource, id.ToString(), companyId, cancellationToken);
+    }
 }

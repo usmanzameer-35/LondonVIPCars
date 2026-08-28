@@ -1,10 +1,14 @@
 using LondonVIP.Shared.Models;
+using LondonVIP.Infrastructure.Security;
+using LondonVIP.Shared.Security;
 using LondonVIP.Infrastructure.Tenancy;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace LondonVIP.Infrastructure.Data;
 
-public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : DbContext(options)
+public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>(options)
 {
     public DbSet<Booking> Bookings => Set<Booking>();
 
@@ -24,8 +28,31 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
 
     public DbSet<CompanyBranding> CompanyBranding => Set<CompanyBranding>();
 
+    public DbSet<SecurityAuditEvent> SecurityAuditEvents => Set<SecurityAuditEvent>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<ApplicationUser>(entity =>
+        {
+            entity.HasIndex(user => new { user.CompanyId, user.NormalizedEmail });
+            entity.HasOne<Company>().WithMany().HasForeignKey(user => user.CompanyId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<SecurityAuditEvent>(entity =>
+        {
+            entity.Property(item => item.EventType).HasMaxLength(100);
+            entity.Property(item => item.Category).HasMaxLength(100);
+            entity.Property(item => item.Outcome).HasMaxLength(50);
+            entity.Property(item => item.UserId).HasMaxLength(450);
+            entity.Property(item => item.IpAddress).HasMaxLength(64);
+            entity.Property(item => item.UserAgent).HasMaxLength(512);
+            entity.Property(item => item.CorrelationId).HasMaxLength(100);
+            entity.Property(item => item.ResourceType).HasMaxLength(100);
+            entity.Property(item => item.ResourceIdentifier).HasMaxLength(200);
+            entity.Property(item => item.Description).HasMaxLength(500);
+            entity.HasIndex(item => new { item.CompanyId, item.Timestamp });
+            entity.HasIndex(item => new { item.EventType, item.Timestamp });
+        });
         modelBuilder.Entity<Booking>(entity =>
         {
             entity.Property(booking => booking.BookingReference).HasMaxLength(40);

@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.AspNetCore.Authentication;
 
 namespace LondonVIP.Tests.Infrastructure;
 
@@ -37,6 +38,12 @@ internal sealed class TestApiHost : IAsyncDisposable
                 services.RemoveAll<DbContextOptions<LondonVIPDbContext>>();
                 services.RemoveAll<IDbContextOptionsConfiguration<LondonVIPDbContext>>();
                 services.AddDbContext<LondonVIPDbContext>(options => options.UseSqlite(connection));
+                services.AddAuthentication(options =>
+                {
+                    options.DefaultAuthenticateScheme = TestAuthenticationHandler.SchemeName;
+                    options.DefaultChallengeScheme = TestAuthenticationHandler.SchemeName;
+                    options.DefaultForbidScheme = TestAuthenticationHandler.SchemeName;
+                }).AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(TestAuthenticationHandler.SchemeName, _ => { });
                 configureServices?.Invoke(services);
             });
 

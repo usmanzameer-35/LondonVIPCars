@@ -48,6 +48,18 @@ public static partial class CompanySetupValidator
         Required("invoice.invoicePrefix", setup.Invoice.InvoicePrefix, "Invoice prefix");
         Required("website.websiteTitle", setup.Website.WebsiteTitle, "Website title");
 
+        foreach (var field in new[]
+        {
+            ("profile.tradingName", setup.Profile.TradingName, 200), ("profile.legalName", setup.Profile.LegalName, 200),
+            ("profile.email", setup.Profile.Email, 254), ("profile.phone", setup.Profile.Phone, 50),
+            ("profile.website", setup.Profile.Website, 500), ("profile.address", setup.Profile.Address, 300),
+            ("profile.city", setup.Profile.City, 100), ("profile.postcode", setup.Profile.Postcode, 20),
+            ("profile.country", setup.Profile.Country, 100), ("profile.timeZone", setup.Profile.TimeZone, 100),
+            ("operations.defaultLanguage", setup.Operations.DefaultLanguage, 20), ("website.websiteTitle", setup.Website.WebsiteTitle, 200),
+            ("website.websiteTagline", setup.Website.WebsiteTagline, 300), ("branding.logoUrl", setup.Branding.LogoUrl, 500),
+            ("branding.faviconUrl", setup.Branding.FaviconUrl, 500)
+        }) if (field.Item2?.Length > field.Item3) Add(field.Item1, $"Value cannot exceed {field.Item3} characters.");
+
         if (!string.IsNullOrWhiteSpace(setup.Profile.Email) && !EmailPattern().IsMatch(setup.Profile.Email)) Add("profile.email", "Email must be a valid address.");
         if (!string.IsNullOrWhiteSpace(setup.Profile.Currency) && !CurrencyPattern().IsMatch(setup.Profile.Currency)) Add("profile.currency", "Currency must be a three-letter uppercase code.");
         foreach (var colour in new[] { ("branding.primaryColour", setup.Branding.PrimaryColour), ("branding.secondaryColour", setup.Branding.SecondaryColour), ("branding.accentColour", setup.Branding.AccentColour) })

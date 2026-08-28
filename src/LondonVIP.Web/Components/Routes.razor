@@ -1,6 +1,8 @@
 <Router AppAssembly="typeof(LondonVIP.Web.WebProgram).Assembly" NotFoundPage="typeof(Pages.NotFound)">
     <Found Context="routeData">
-        <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+            <NotAuthorized><LayoutView Layout="typeof(Layout.MainLayout)"><p role="alert">Authentication is required to access this page.</p></LayoutView></NotAuthorized>
+        </AuthorizeRouteView>
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
 </Router>

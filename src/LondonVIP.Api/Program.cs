@@ -2,8 +2,15 @@ using LondonVIP.Infrastructure.Data;
 using LondonVIP.Infrastructure.Pricing;
 using LondonVIP.Shared.Pricing;
 using LondonVIP.Infrastructure.Tenancy;
+using LondonVIP.Infrastructure.Security;
+using LondonVIP.Api.Security;
+using LondonVIP.Shared.Security;
 using LondonVIP.Shared.Tenancy;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.DataProtection;
 
 namespace LondonVIP.Api;
 
@@ -25,12 +32,62 @@ public static class Program
         });
 
         builder.Services.AddOpenApi();
+        builder.Services.AddProblemDetails();
+        builder.Services.AddDataProtection().SetApplicationName("LondonVIPCars")
+            .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(Path.GetTempPath(), "LondonVIPCars-DataProtectionKeys")));
+        builder.Services.Configure<SecurityOptions>(builder.Configuration.GetSection(SecurityOptions.SectionName));
         builder.Services.AddDbContext<LondonVIPDbContext>(options =>
             options.UseSqlServer(
                 builder.Configuration.GetConnectionString("DefaultConnection")
                 ?? throw new InvalidOperationException("Connection string 'DefaultConnection' was not found.")));
+        var security = builder.Configuration.GetSection(SecurityOptions.SectionName).Get<SecurityOptions>() ?? new SecurityOptions();
+        builder.Services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
+        {
+            options.User.RequireUniqueEmail = true;
+            options.Password.RequiredLength = 12;
+            options.Password.RequireDigit = true;
+            options.Password.RequireLowercase = true;
+            options.Password.RequireUppercase = true;
+            options.Password.RequireNonAlphanumeric = true;
+            options.Lockout.MaxFailedAccessAttempts = security.MaxFailedAccessAttempts;
+            options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(security.LockoutMinutes);
+            options.Lockout.AllowedForNewUsers = true;
+            options.SignIn.RequireConfirmedEmail = true;
+        }).AddEntityFrameworkStores<LondonVIPDbContext>().AddDefaultTokenProviders();
+        builder.Services.ConfigureApplicationCookie(options =>
+        {
+            options.Cookie.Name = ".LondonVIP.Erp.Auth";
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SameSite = SameSiteMode.Strict;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+            options.ExpireTimeSpan = TimeSpan.FromMinutes(security.CookieExpirationMinutes);
+            options.SlidingExpiration = true;
+            options.Events.OnRedirectToLogin = context => { context.Response.StatusCode = StatusCodes.Status401Unauthorized; return Task.CompletedTask; };
+            options.Events.OnRedirectToAccessDenied = context => { context.Response.StatusCode = StatusCodes.Status403Forbidden; return Task.CompletedTask; };
+        });
+        builder.Services.AddAuthorizationBuilder()
+            .AddPolicy(SecurityPolicies.ErpAccess, policy => policy.RequireRole(SecurityRoles.SuperAdmin, SecurityRoles.Admin, SecurityRoles.Dispatcher, SecurityRoles.Finance, SecurityRoles.Driver))
+            .AddPolicy(SecurityPolicies.BookingOperations, policy => policy.RequireRole(SecurityRoles.SuperAdmin, SecurityRoles.Admin, SecurityRoles.Dispatcher))
+            .AddPolicy(SecurityPolicies.DispatchOperations, policy => policy.RequireRole(SecurityRoles.SuperAdmin, SecurityRoles.Admin, SecurityRoles.Dispatcher))
+            .AddPolicy(SecurityPolicies.FinanceOperations, policy => policy.RequireRole(SecurityRoles.SuperAdmin, SecurityRoles.Admin, SecurityRoles.Finance))
+            .AddPolicy(SecurityPolicies.CompanyAdministration, policy => policy.RequireRole(SecurityRoles.SuperAdmin, SecurityRoles.Admin))
+            .AddPolicy(SecurityPolicies.PlatformAdministration, policy => policy.RequireRole(SecurityRoles.SuperAdmin));
+        builder.Services.AddRateLimiter(options =>
+        {
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.AddFixedWindowLimiter("login", limiter => { limiter.PermitLimit = security.RateLimits.LoginPermitLimit; limiter.Window = TimeSpan.FromMinutes(security.RateLimits.WindowMinutes); limiter.QueueLimit = 0; });
+            options.AddFixedWindowLimiter("public-quotes", limiter => { limiter.PermitLimit = security.RateLimits.PublicQuotePermitLimit; limiter.Window = TimeSpan.FromMinutes(security.RateLimits.WindowMinutes); limiter.QueueLimit = 0; });
+            options.AddPolicy("operations", context => RateLimitPartition.GetFixedWindowLimiter(context.User.Identity?.Name ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions { PermitLimit = security.RateLimits.OperationalPermitLimit, Window = TimeSpan.FromMinutes(security.RateLimits.WindowMinutes), QueueLimit = 0 }));
+        });
+        builder.Services.AddCors(options => options.AddPolicy("configured-origins", policy =>
+        {
+            if (security.AllowedOrigins.Length > 0) policy.WithOrigins(security.AllowedOrigins).AllowAnyHeader().AllowAnyMethod().AllowCredentials();
+        }));
+        builder.Services.AddHttpContextAccessor();
         builder.Services.AddScoped<IPricingService, PricingService>();
-        builder.Services.AddSingleton<ICompanyContext, DefaultCompanyContext>();
+        builder.Services.AddScoped<ICompanyContext, AuthenticatedCompanyContext>();
+        builder.Services.AddScoped<IAuditService, AuditService>();
+        builder.Services.AddHostedService<IdentityBootstrapper>();
         configureServices?.Invoke(builder.Services);
 
         var app = builder.Build();
@@ -40,7 +97,21 @@ public static class Program
             app.MapOpenApi();
         }
 
-        app.UseHttpsRedirection();
+        if (!app.Environment.IsDevelopment())
+        {
+            app.UseExceptionHandler();
+            app.UseHsts();
+            app.UseHttpsRedirection();
+        }
+        app.UseMiddleware<CorrelationIdMiddleware>();
+        app.UseMiddleware<SecurityHeadersMiddleware>();
+        app.UseCors("configured-origins");
+        app.UseRateLimiter();
+        app.UseAuthentication();
+        app.UseMiddleware<AuthorizationAuditMiddleware>();
+        app.UseAuthorization();
+
+        app.MapAuthenticationEndpoints();
 
         app.MapGet("/api/status", () => new
         {
@@ -53,9 +124,11 @@ public static class Program
             IPricingService pricingService,
             CancellationToken cancellationToken) =>
         {
+            var errors = ValidateQuote(request);
+            if (errors.Count > 0) return Results.ValidationProblem(errors);
             var quote = await pricingService.CalculateQuoteAsync(request, cancellationToken);
             return Results.Ok(quote);
-        });
+        }).AllowAnonymous().RequireRateLimiting("public-quotes");
 
         app.MapCompanySetupEndpoints();
         app.MapBookingEndpoints();
@@ -78,9 +151,22 @@ public static class Program
                 .ToArray();
             return forecast;
         })
-        .WithName("GetWeatherForecast");
+        .WithName("GetWeatherForecast").RequireAuthorization();
 
         return app;
+    }
+
+    private static Dictionary<string, string[]> ValidateQuote(QuoteRequest request)
+    {
+        var errors = new Dictionary<string, string[]>();
+        if (string.IsNullOrWhiteSpace(request.PickupAddress) || request.PickupAddress.Length > 500) errors["pickupAddress"] = ["Pickup address is required and cannot exceed 500 characters."];
+        if (string.IsNullOrWhiteSpace(request.Destination) || request.Destination.Length > 500) errors["destination"] = ["Destination is required and cannot exceed 500 characters."];
+        if (!Enum.IsDefined(request.VehicleType)) errors["vehicleType"] = ["Vehicle type is invalid."];
+        if (request.PassengerCount is < 1 or > 8) errors["passengerCount"] = ["Passenger count must be between 1 and 8."];
+        if (request.LuggageCount is < 0 or > 20) errors["luggageCount"] = ["Luggage count must be between 0 and 20."];
+        if (request.WaitingMinutes is < 0 or > 1440) errors["waitingMinutes"] = ["Waiting minutes must be between 0 and 1440."];
+        if (request.IsAirportPickup && request.AirportId is null) errors["airportId"] = ["Airport is required for airport pickup quotes."];
+        return errors;
     }
 
     private static string ResolveContentRoot(string projectName)

@@ -1,0 +1,19 @@
+@page "/erp/login"
+@layout MainLayout
+
+<PageTitle>ERP sign in | London VIP Cars</PageTitle>
+<main style="max-width:28rem;margin:5rem auto;padding:2rem;border:1px solid #dfe7e4;border-radius:1rem;background:white">
+    <p style="color:#a06f22;text-transform:uppercase;letter-spacing:.12em;font-weight:700">Secure operations</p>
+    <h1>ERP sign in</h1>
+    <p>Use your authorised London VIP Cars staff account.</p>
+    @if (Navigation.Uri.Contains("failed=true", StringComparison.OrdinalIgnoreCase)) { <p role="alert" style="color:#9d302a">Sign-in failed or the account is temporarily locked.</p> }
+    <form method="post" action="/erp/session/login">
+        <AntiforgeryToken />
+        <label style="display:grid;gap:.3rem;margin-bottom:1rem">Email<input name="email" type="email" autocomplete="username" maxlength="254" required style="padding:.75rem" /></label>
+        <label style="display:grid;gap:.3rem;margin-bottom:1rem">Password<input name="password" type="password" autocomplete="current-password" maxlength="256" required style="padding:.75rem" /></label>
+        <label style="display:flex;gap:.5rem;margin-bottom:1rem"><input name="rememberMe" type="checkbox" /> Keep me signed in</label>
+        <button type="submit" style="width:100%;padding:.8rem;background:#17473e;color:white;border:0;border-radius:.5rem">Sign in securely</button>
+    </form>
+</main>
+
+@code { [Inject] private NavigationManager Navigation { get; set; } = null!; }

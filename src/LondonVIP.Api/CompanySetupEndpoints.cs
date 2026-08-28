@@ -3,6 +3,8 @@ using LondonVIP.Shared.CompanySetup;
 using LondonVIP.Shared.Models;
 using LondonVIP.Shared.Tenancy;
 using Microsoft.EntityFrameworkCore;
+using LondonVIP.Infrastructure.Security;
+using LondonVIP.Shared.Security;
 
 namespace LondonVIP.Api;
 
@@ -10,8 +12,9 @@ public static class CompanySetupEndpoints
 {
     public static IEndpointRouteBuilder MapCompanySetupEndpoints(this IEndpointRouteBuilder endpoints)
     {
-        endpoints.MapGet("/api/company/setup", GetSetupAsync);
-        endpoints.MapPut("/api/company/setup", UpdateSetupAsync);
+        var group = endpoints.MapGroup("/api/company/setup").RequireAuthorization(SecurityPolicies.CompanyAdministration).RequireRateLimiting("operations");
+        group.MapGet("", GetSetupAsync);
+        group.MapPut("", UpdateSetupAsync);
         return endpoints;
     }
 
@@ -28,6 +31,7 @@ public static class CompanySetupEndpoints
         CompanySetupDto setup,
         LondonVIPDbContext dbContext,
         ICompanyContext companyContext,
+        IAuditService audit,
         CancellationToken cancellationToken)
     {
         var errors = CompanySetupValidator.Validate(setup);
@@ -38,6 +42,7 @@ public static class CompanySetupEndpoints
 
         Apply(setup, company);
         await dbContext.SaveChangesAsync(cancellationToken);
+        await audit.WriteAsync("CompanySetupUpdated", "Company", "Succeeded", SecurityEventSeverity.Warning, "Company setup was updated.", "Company", company.Id.ToString(), company.Id, cancellationToken);
         return Results.Ok(ToDto(company));
     }
 
