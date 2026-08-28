@@ -1,0 +1,13 @@
+<section class="quote-card" aria-labelledby="quote-title">
+    <div class="quote-heading"><div><span class="eyebrow">Plan your journey</span><h2 id="quote-title">Get an instant quote</h2></div><span class="secure-note"><span aria-hidden="true">&#10003;</span> No booking required</span></div>
+    <form class="quote-form" onsubmit="return false;">
+        <div class="field field-wide"><label for="pickup">Pickup location</label><div class="input-wrap"><span aria-hidden="true">A</span><input id="pickup" type="text" placeholder="Enter pickup address" autocomplete="street-address" /></div></div>
+        <div class="field field-wide"><label for="destination">Destination</label><div class="input-wrap"><span aria-hidden="true">B</span><input id="destination" type="text" placeholder="Enter destination" /></div></div>
+        <div class="field"><label for="travel-date">Pickup date &amp; time</label><input id="travel-date" type="datetime-local" /></div>
+        <div class="field"><label for="vehicle">Vehicle type</label><select id="vehicle"><option>Saloon</option><option>Estate</option><option>MPV</option><option>Eight Seater</option></select></div>
+        <div class="field"><label for="passengers">Passengers</label><select id="passengers">@for (var count = 1; count <= 8; count++) { <option value="@count">@count</option> }</select></div>
+        <div class="field"><label for="luggage">Luggage</label><select id="luggage">@for (var count = 0; count <= 8; count++) { <option value="@count">@count</option> }</select></div>
+        <label class="check-field"><input type="checkbox" /><span><strong>Airport pickup</strong><small>Flight-aware collection options available later</small></span></label>
+        <button class="button quote-button" type="button">Get quote <span aria-hidden="true">&rarr;</span></button>
+    </form>
+</section>

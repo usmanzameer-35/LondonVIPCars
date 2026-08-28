@@ -1,0 +1,13 @@
+<div class="flight-board" aria-label="Example flight information">
+    <div class="flight-board-head"><span>Flight</span><span>Route</span><span>London airport</span><span>Arrival</span><span>Status</span></div>
+    <div class="flight-track">
+        @foreach (var flight in Items)
+        {
+            <article class="flight-row"><strong>@flight.FlightNumber</strong><span>@flight.Route</span><span>@flight.Airport</span><time>@flight.ScheduledTime</time><span><span class="status-pill @flight.StatusTone">@flight.Status</span></span></article>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public IReadOnlyList<FlightDisplayItem> Items { get; set; } = [];
+}
