@@ -5,9 +5,8 @@ using LondonVIP.Infrastructure.Tenancy;
 using LondonVIP.Shared.CompanySetup;
 using LondonVIP.Shared.Models;
 using LondonVIP.Shared.Tenancy;
+using LondonVIP.Tests.Infrastructure;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting.Server;
-using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -144,18 +143,8 @@ public class CompanySetupEndpointTests
         Action<IServiceCollection>? configureServices,
         Func<WebApplication, HttpClient, Task> test)
     {
-        await using var app = LondonVIP.Api.Program.CreateApp(["--environment", "Development"], configureServices);
-        app.Urls.Add("http://127.0.0.1:0");
-        await app.StartAsync();
-        try
-        {
-            var server = app.Services.GetRequiredService<IServer>();
-            var address = server.Features.Get<IServerAddressesFeature>()!.Addresses.Single();
-            using var handler = new HttpClientHandler { UseProxy = false };
-            using var client = new HttpClient(handler) { BaseAddress = new Uri(address) };
-            await test(app, client);
-        }
-        finally { await app.StopAsync(); }
+        await using var host = await TestApiHost.StartAsync(configureServices);
+        await test(host.App, host.Client);
     }
 
     private sealed class FixedCompanyContext(Guid companyId) : ICompanyContext

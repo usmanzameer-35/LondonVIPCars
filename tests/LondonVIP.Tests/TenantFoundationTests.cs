@@ -3,6 +3,7 @@ using LondonVIP.Infrastructure.Tenancy;
 using LondonVIP.Shared.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using LondonVIP.Tests.Infrastructure;
 
 namespace LondonVIP.Tests;
 
@@ -32,7 +33,7 @@ public class TenantFoundationTests
     public void EfModel_DefinesTenantOwnership_WhileAirportRemainsGlobal()
     {
         var options = new DbContextOptionsBuilder<LondonVIPDbContext>()
-            .UseSqlServer("Server=(localdb)\\MSSQLLocalDB;Database=LondonVIPCars-MetadataOnly;Trusted_Connection=True")
+            .UseSqlite("Data Source=:memory:")
             .Options;
         using var context = new LondonVIPDbContext(options);
 
@@ -53,8 +54,8 @@ public class TenantFoundationTests
     [Fact]
     public async Task DevelopmentDatabase_ContainsDefaultCompanySettingsAndBranding()
     {
-        await using var app = LondonVIP.Api.Program.CreateApp(["--environment", "Development"]);
-        await using var scope = app.Services.CreateAsyncScope();
+        await using var host = await TestApiHost.StartAsync();
+        await using var scope = host.App.Services.CreateAsyncScope();
         var context = scope.ServiceProvider.GetRequiredService<LondonVIPDbContext>();
 
         var company = await context.Companies.AsNoTracking()
