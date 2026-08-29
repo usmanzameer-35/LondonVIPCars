@@ -6,7 +6,7 @@ using Microsoft.Extensions.Options;
 
 namespace LondonVIP.Api.Security;
 
-public sealed class IdentityBootstrapper(IServiceProvider services, IOptions<SecurityOptions> options, ILogger<IdentityBootstrapper> logger) : IHostedService
+public sealed class IdentityBootstrapper(IServiceProvider services, IOptions<SecurityOptions> options, IHostEnvironment environment, ILogger<IdentityBootstrapper> logger) : IHostedService
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -18,7 +18,28 @@ public sealed class IdentityBootstrapper(IServiceProvider services, IOptions<Sec
         var configured = options.Value.BootstrapAdmin;
         if (string.IsNullOrWhiteSpace(configured.Email) || string.IsNullOrWhiteSpace(configured.Password)) return;
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-        if (await users.FindByEmailAsync(configured.Email) is not null) return;
+        var existing = await users.FindByEmailAsync(configured.Email);
+        if (existing is not null)
+        {
+            // Never modify established users outside Development. Development may intentionally synchronize
+            // a local bootstrap secret so a stale password/lockout does not prevent local ERP access.
+            if (!environment.IsDevelopment()) return;
+
+            existing.IsActive = true;
+            await users.SetLockoutEndDateAsync(existing, null);
+            await users.ResetAccessFailedCountAsync(existing);
+            var resetToken = await users.GeneratePasswordResetTokenAsync(existing);
+            var reset = await users.ResetPasswordAsync(existing, resetToken, configured.Password);
+            if (!reset.Succeeded)
+            {
+                logger.LogError("Development bootstrap administrator password synchronization failed: {Errors}", string.Join("; ", reset.Errors.Select(error => error.Code)));
+                return;
+            }
+            if (!await users.IsInRoleAsync(existing, SecurityRoles.Admin))
+                await users.AddToRoleAsync(existing, SecurityRoles.Admin);
+            logger.LogInformation("Development bootstrap administrator account was synchronized.");
+            return;
+        }
         var user = new ApplicationUser { Id = Guid.NewGuid(), CompanyId = LondonVipCompany.Id, UserName = configured.Email.Trim(), Email = configured.Email.Trim(), EmailConfirmed = true, IsActive = true, CreatedAt = DateTimeOffset.UtcNow };
         var result = await users.CreateAsync(user, configured.Password);
         if (result.Succeeded) await users.AddToRoleAsync(user, SecurityRoles.Admin);
