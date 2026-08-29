@@ -88,7 +88,13 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
 
         modelBuilder.Entity<Driver>(entity =>
         {
+            entity.Property(driver => driver.DriverNumber).HasMaxLength(50);
+            entity.Property(driver => driver.Notes).HasMaxLength(4000);
+            entity.Property(driver => driver.DrivingLicenceNumber).HasMaxLength(100);
+            entity.Property(driver => driver.PrivateHireLicenceNumber).HasMaxLength(100);
             entity.HasIndex(driver => new { driver.CompanyId, driver.Email });
+            entity.HasIndex(driver => new { driver.CompanyId, driver.VehicleId }).IsUnique().HasFilter("[VehicleId] IS NOT NULL");
+            entity.HasIndex(driver => new { driver.CompanyId, driver.AvailabilityStatus, driver.IsActive });
             entity.HasOne(driver => driver.Company).WithMany(company => company.Drivers)
                 .HasForeignKey(driver => driver.CompanyId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(driver => driver.Vehicle).WithMany().HasForeignKey(driver => driver.VehicleId)
@@ -97,6 +103,8 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
 
         modelBuilder.Entity<Vehicle>(entity =>
         {
+            entity.Property(vehicle => vehicle.Colour).HasMaxLength(50);
+            entity.Property(vehicle => vehicle.Notes).HasMaxLength(4000);
             entity.HasIndex(vehicle => new { vehicle.CompanyId, vehicle.RegistrationNumber }).IsUnique();
             entity.HasOne(vehicle => vehicle.Company).WithMany(company => company.Vehicles)
                 .HasForeignKey(vehicle => vehicle.CompanyId).OnDelete(DeleteBehavior.Restrict);

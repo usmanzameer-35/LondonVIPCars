@@ -46,6 +46,7 @@ public static class DispatchEndpoints
                 RegistrationNumber = driver.Vehicle == null ? null : driver.Vehicle.RegistrationNumber,
                 VehicleType = driver.Vehicle == null ? null : driver.Vehicle.VehicleType,
                 IsActive = driver.IsActive
+                ,AvailabilityStatus = driver.AvailabilityStatus
             }).ToListAsync(cancellationToken);
 
         return Results.Ok(drivers);

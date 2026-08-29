@@ -12,4 +12,5 @@ public sealed class DriverAvailabilityDto
     public string? RegistrationNumber { get; set; }
     public VehicleType? VehicleType { get; set; }
     public bool IsActive { get; set; }
+    public DriverAvailabilityStatus AvailabilityStatus { get; set; }
 }

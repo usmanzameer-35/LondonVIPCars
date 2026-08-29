@@ -21,4 +21,13 @@ public class Vehicle
     public int LuggageCapacity { get; set; }
 
     public bool IsActive { get; set; }
+
+    public string? Colour { get; set; }
+    public int? Year { get; set; }
+    public string? Notes { get; set; }
+    public DateOnly? MOTExpiry { get; set; }
+    public DateOnly? InsuranceExpiry { get; set; }
+    public DateOnly? PrivateHireLicenceExpiry { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
 }

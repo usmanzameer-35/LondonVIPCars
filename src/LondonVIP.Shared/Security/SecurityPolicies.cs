@@ -11,5 +11,8 @@ public static class SecurityPolicies
     public const string CustomerWrite = nameof(CustomerWrite);
     public const string PricingRead = nameof(PricingRead);
     public const string PricingWrite = nameof(PricingWrite);
+    public const string DriverFleetRead = nameof(DriverFleetRead);
+    public const string DriverFleetWrite = nameof(DriverFleetWrite);
+    public const string DriverOperations = nameof(DriverOperations);
     public const string PlatformAdministration = nameof(PlatformAdministration);
 }

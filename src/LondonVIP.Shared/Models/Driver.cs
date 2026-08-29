@@ -21,4 +21,16 @@ public class Driver
     public Vehicle? Vehicle { get; set; }
 
     public bool IsActive { get; set; }
+
+    public string? DriverNumber { get; set; }
+    public string? Notes { get; set; }
+    public string? DrivingLicenceNumber { get; set; }
+    public DateOnly? DrivingLicenceExpiry { get; set; }
+    public string? PrivateHireLicenceNumber { get; set; }
+    public DateOnly? PrivateHireLicenceExpiry { get; set; }
+    public DateOnly? DBSExpiry { get; set; }
+    public DateOnly? MedicalExpiry { get; set; }
+    public DriverAvailabilityStatus AvailabilityStatus { get; set; } = DriverAvailabilityStatus.Offline;
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
 }

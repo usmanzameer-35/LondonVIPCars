@@ -10,6 +10,12 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.11" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Preserve but do not compile the untracked duplicate of the applied Step 28 migration. -->
+    <Compile Remove="Data\Migrations\20260828152645_AddOperationalCustomerFields.cs" />
+    <Compile Remove="Data\Migrations\20260828152645_AddOperationalCustomerFields.Designer.cs" />
+  </ItemGroup>
+
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
