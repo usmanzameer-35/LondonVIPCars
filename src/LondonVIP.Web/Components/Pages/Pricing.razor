@@ -1,0 +1,63 @@
+@page "/erp/pricing"
+@attribute [Authorize]
+@layout AdminLayout
+@rendermode InteractiveServer
+@using LondonVIP.Shared.Pricing
+@using LondonVIP.Shared.Models
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Pricing | London VIP Cars ERP</PageTitle>
+
+<div class="pricing-page">
+    <header class="pricing-heading"><div><span>Finance</span><h1>Pricing administration</h1><p>Manage tenant-owned fares without hard-coded airport prices.</p></div><button class="primary" type="button" @onclick="NewRule">+ Create pricing rule</button></header>
+    @if (Loading) { <div class="pricing-state">Loading pricing configuration...</div> }
+    else if (!string.IsNullOrEmpty(Error)) { <div class="pricing-state error" role="alert">@Error</div> }
+    else
+    {
+        <section class="pricing-summary" aria-label="Pricing summary"><div><strong>@Summary.ActiveRules</strong><span>Active rules</span></div><div><strong>@Summary.AirportsConfigured</strong><span>Airports configured</span></div><div><strong>@Summary.VehicleTypesConfigured</strong><span>Vehicle types configured</span></div><div><strong>@Summary.InactiveRules</strong><span>Inactive rules</span></div></section>
+        <details class="company-defaults"><summary>Company-level pricing defaults</summary><div><span>Airport supplement <strong>@Summary.DefaultAirportPickupSupplement.ToString("C", UkCulture)</strong></span><span>Free airport waiting <strong>@Summary.DefaultFreeAirportWaitingMinutes min</strong></span><span>Waiting per hour <strong>@Summary.DefaultWaitingChargePerHour.ToString("C", UkCulture)</strong></span><span>Meet &amp; greet <strong>@(Summary.MeetAndGreetEnabled ? "Enabled" : "Disabled")</strong></span><span>Minimum notice <strong>@Summary.MinimumBookingNoticeMinutes min</strong></span></div><p>Rule-specific values shown below are used by the quote engine for their airport and vehicle combination.</p></details>
+        <section class="pricing-filters"><label><span>Search airport</span><input type="search" placeholder="Code, airport or general" @bind="Search" @bind:event="oninput" /></label><label><span>Vehicle type</span><select @bind="VehicleFilter"><option value="">All vehicles</option>@foreach (var vehicle in Enum.GetValues<VehicleType>()) { <option value="@vehicle">@Display(vehicle)</option> }</select></label><label><span>Status</span><select @bind="StatusFilter"><option value="all">All rules</option><option value="active">Active</option><option value="inactive">Inactive</option></select></label><button type="button" @onclick="LoadAsync">Refresh</button></section>
+        @if (Filtered.Count == 0) { <div class="pricing-empty"><h2>No pricing rules found</h2><p>@(Rules.Count == 0 ? "No tenant pricing has been configured. Public quotes will return pricing not configured." : "No rules match the current filters.")</p></div> }
+        else { <div class="pricing-table"><table><thead><tr><th>Airport</th><th>Vehicle</th><th>Base fare</th><th>Pickup supplement</th><th>Free waiting</th><th>Waiting / hour</th><th>Status</th><th>Updated</th><th></th></tr></thead><tbody>@foreach (var rule in Filtered) { <tr><td data-label="Airport"><strong>@AirportLabel(rule)</strong></td><td data-label="Vehicle">@Display(rule.VehicleType)</td><td data-label="Base fare">@rule.BasePrice.ToString("C", UkCulture)</td><td data-label="Supplement">@rule.AirportPickupSupplement.ToString("C", UkCulture)</td><td data-label="Free waiting">@rule.FreeWaitingMinutes min</td><td data-label="Waiting / hour">@rule.WaitingChargePerHour.ToString("C", UkCulture)</td><td data-label="Status"><span class="status @(rule.IsActive ? "active" : "inactive")">@(rule.IsActive ? "Active" : "Inactive")</span></td><td data-label="Updated">@rule.UpdatedAt.LocalDateTime.ToString("dd MMM yyyy")</td><td class="actions"><button type="button" @onclick="() => EditAsync(rule.Id)">Edit</button><button type="button" class="toggle-status" disabled="@(BusyId == rule.Id)" @onclick="() => SetStatusAsync(rule)">@(rule.IsActive ? "Deactivate" : "Activate")</button></td></tr> }</tbody></table></div> }
+    }
+</div>
+
+@if (Editing)
+{
+    <div class="pricing-backdrop"><section class="pricing-editor" role="dialog" aria-modal="true" aria-labelledby="pricing-editor-title"><header><div><span>@(EditingId.HasValue ? "Edit pricing rule" : "New pricing rule")</span><h2 id="pricing-editor-title">@(EditingId.HasValue ? EditorTitle : "Create rule")</h2></div><button type="button" @onclick="CancelEdit" aria-label="Close editor">×</button></header><EditForm Model="Editor" OnSubmit="SaveAsync">
+        @if (SaveErrors.Count > 0) { <div class="save-errors" role="alert"><strong>Please review the pricing rule.</strong><ul>@foreach (var error in SaveErrors) { <li>@error</li> }</ul></div> }
+        <div class="form-grid"><label><span>Airport</span><select @bind="Editor.AirportId"><option value="">General / non-airport</option>@foreach (var airport in Airports) { <option value="@airport.Id">@airport.Code — @airport.Name</option> }</select></label><label><span>Vehicle type *</span><select @bind="Editor.VehicleType">@foreach (var vehicle in Enum.GetValues<VehicleType>()) { <option value="@vehicle">@Display(vehicle)</option> }</select></label><label><span>Base fare</span><input type="number" min="0" max="100000" step="0.01" @bind="Editor.BasePrice" /></label><label><span>Airport pickup supplement</span><input type="number" min="0" max="10000" step="0.01" @bind="Editor.AirportPickupSupplement" /></label><label><span>Free waiting minutes</span><input type="number" min="0" max="1440" @bind="Editor.FreeWaitingMinutes" /></label><label><span>Waiting charge per hour</span><input type="number" min="0" max="10000" step="0.01" @bind="Editor.WaitingChargePerHour" /></label><label class="active-toggle"><input type="checkbox" @bind="Editor.IsActive" /><span><strong>Active rule</strong><small>Active rules are available to the public quote engine.</small></span></label></div><footer><button class="secondary" type="button" @onclick="CancelEdit">Cancel</button><button class="primary" type="submit" disabled="@Saving">@(Saving ? "Saving..." : "Save pricing rule")</button></footer>
+    </EditForm></section></div>
+}
+
+@code {
+    private static readonly System.Globalization.CultureInfo UkCulture = System.Globalization.CultureInfo.GetCultureInfo("en-GB");
+    private List<PricingRuleListItemDto> Rules { get; set; } = [];
+    private List<PricingAirportLookupDto> Airports { get; set; } = [];
+    private PricingSummaryDto Summary { get; set; } = new();
+    private PricingRuleUpdateDto Editor { get; set; } = new();
+    private Guid? EditingId { get; set; }
+    private Guid? BusyId { get; set; }
+    private string EditorTitle { get; set; } = string.Empty;
+    private string Search { get; set; } = string.Empty;
+    private string VehicleFilter { get; set; } = string.Empty;
+    private string StatusFilter { get; set; } = "all";
+    private bool Loading { get; set; } = true;
+    private bool Editing { get; set; }
+    private bool Saving { get; set; }
+    private string? Error { get; set; }
+    private List<string> SaveErrors { get; } = [];
+    private List<PricingRuleListItemDto> Filtered => Rules.Where(rule => (string.IsNullOrWhiteSpace(Search) || $"{rule.AirportCode} {rule.AirportName} general".Contains(Search, StringComparison.OrdinalIgnoreCase)) && (string.IsNullOrEmpty(VehicleFilter) || rule.VehicleType.ToString() == VehicleFilter) && (StatusFilter == "all" || rule.IsActive == (StatusFilter == "active"))).ToList();
+    protected override Task OnInitializedAsync() => LoadAsync();
+    private async Task LoadAsync() { Loading = true; Error = null; try { var client = Client(); var rules = client.GetFromJsonAsync<List<PricingRuleListItemDto>>("api/pricing"); var airports = client.GetFromJsonAsync<List<PricingAirportLookupDto>>("api/pricing/airports"); var summary = client.GetFromJsonAsync<PricingSummaryDto>("api/pricing/summary"); await Task.WhenAll(rules, airports, summary); Rules = rules.Result ?? []; Airports = airports.Result ?? []; Summary = summary.Result ?? new(); } catch { Error = "Pricing could not be loaded. Make sure LondonVIP.Api is running and your role has access."; } finally { Loading = false; } }
+    private void NewRule() { EditingId = null; EditorTitle = string.Empty; Editor = new PricingRuleUpdateDto { IsActive = true }; SaveErrors.Clear(); Editing = true; }
+    private async Task EditAsync(Guid id) { try { var rule = await Client().GetFromJsonAsync<PricingRuleDetailDto>($"api/pricing/{id}"); if (rule is null) return; EditingId = id; EditorTitle = $"{(rule.AirportCode ?? "General")} · {Display(rule.VehicleType)}"; Editor = new PricingRuleUpdateDto { AirportId = rule.AirportId, VehicleType = rule.VehicleType, BasePrice = rule.BasePrice, AirportPickupSupplement = rule.AirportPickupSupplement, FreeWaitingMinutes = rule.FreeWaitingMinutes, WaitingChargePerHour = rule.WaitingChargePerHour, IsActive = rule.IsActive }; SaveErrors.Clear(); Editing = true; } catch { Error = "The pricing rule could not be opened."; } }
+    private async Task SaveAsync() { Saving = true; SaveErrors.Clear(); try { using var response = EditingId is { } id ? await Client().PutAsJsonAsync($"api/pricing/{id}", Editor) : await Client().PostAsJsonAsync("api/pricing", Editor); if (response.IsSuccessStatusCode) { Editing = false; await LoadAsync(); } else await AddApiErrorsAsync(response); } catch { SaveErrors.Add("The API could not be reached. No pricing changes were saved."); } finally { Saving = false; } }
+    private async Task SetStatusAsync(PricingRuleListItemDto rule) { BusyId = rule.Id; Error = null; try { using var request = new HttpRequestMessage(HttpMethod.Patch, $"api/pricing/{rule.Id}/status") { Content = JsonContent.Create(new PricingRuleStatusDto { IsActive = !rule.IsActive }) }; using var response = await Client().SendAsync(request); if (response.IsSuccessStatusCode) await LoadAsync(); else { var problem = await response.Content.ReadFromJsonAsync<ValidationResponse>(); Error = problem?.Errors.SelectMany(item => item.Value).FirstOrDefault() ?? "The pricing status could not be changed."; } } catch { Error = "The pricing status action could not reach the API."; } finally { BusyId = null; } }
+    private async Task AddApiErrorsAsync(HttpResponseMessage response) { if (response.StatusCode == System.Net.HttpStatusCode.BadRequest) { var problem = await response.Content.ReadFromJsonAsync<ValidationResponse>(); SaveErrors.AddRange(problem?.Errors.SelectMany(item => item.Value) ?? ["Please check the pricing values."]); } else if (response.StatusCode == System.Net.HttpStatusCode.Forbidden) SaveErrors.Add("Your role has read-only pricing access."); else SaveErrors.Add("The pricing rule could not be saved."); }
+    private void CancelEdit() => Editing = false;
+    private HttpClient Client() => HttpClientFactory.CreateClient("LondonVIP.Api");
+    private static string AirportLabel(PricingRuleListItemDto rule) => rule.AirportId is null ? "General / non-airport" : $"{rule.AirportCode} — {rule.AirportName}";
+    private static string Display<T>(T value) where T : Enum => System.Text.RegularExpressions.Regex.Replace(value.ToString(), "([a-z])([A-Z])", "$1 $2");
+    private sealed class ValidationResponse { public Dictionary<string, string[]> Errors { get; set; } = []; }
+}

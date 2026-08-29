@@ -9,5 +9,7 @@ public static class SecurityPolicies
     public const string CompanyAdministration = nameof(CompanyAdministration);
     public const string CustomerRead = nameof(CustomerRead);
     public const string CustomerWrite = nameof(CustomerWrite);
+    public const string PricingRead = nameof(PricingRead);
+    public const string PricingWrite = nameof(PricingWrite);
     public const string PlatformAdministration = nameof(PlatformAdministration);
 }

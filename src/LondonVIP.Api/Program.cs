@@ -72,6 +72,8 @@ public static class Program
             .AddPolicy(SecurityPolicies.FinanceOperations, policy => policy.RequireRole(SecurityRoles.SuperAdmin, SecurityRoles.Admin, SecurityRoles.Finance))
             .AddPolicy(SecurityPolicies.CustomerRead, policy => policy.RequireRole(SecurityRoles.SuperAdmin, SecurityRoles.Admin, SecurityRoles.Dispatcher, SecurityRoles.Finance))
             .AddPolicy(SecurityPolicies.CustomerWrite, policy => policy.RequireRole(SecurityRoles.SuperAdmin, SecurityRoles.Admin, SecurityRoles.Dispatcher))
+            .AddPolicy(SecurityPolicies.PricingRead, policy => policy.RequireRole(SecurityRoles.SuperAdmin, SecurityRoles.Admin, SecurityRoles.Dispatcher, SecurityRoles.Finance))
+            .AddPolicy(SecurityPolicies.PricingWrite, policy => policy.RequireRole(SecurityRoles.SuperAdmin, SecurityRoles.Admin))
             .AddPolicy(SecurityPolicies.CompanyAdministration, policy => policy.RequireRole(SecurityRoles.SuperAdmin, SecurityRoles.Admin))
             .AddPolicy(SecurityPolicies.PlatformAdministration, policy => policy.RequireRole(SecurityRoles.SuperAdmin));
         builder.Services.AddRateLimiter(options =>
@@ -136,6 +138,7 @@ public static class Program
         app.MapBookingEndpoints();
         app.MapDispatchEndpoints();
         app.MapCustomerEndpoints();
+        app.MapPricingAdministrationEndpoints();
 
         var summaries = new[]
         {

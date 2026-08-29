@@ -1,0 +1,21 @@
+ .../PricingAdministrationEndpoints.cs              |  138 [32m+++[m
+ src/LondonVIP.Api/Program.cs                       |    3 [32m+[m
+ ...5200_AddPricingAdministrationFields.Designer.cs | 1063 [32m++++++++++++++++++++[m
+ ...0260829155200_AddPricingAdministrationFields.cs |   46 [32m+[m
+ .../Migrations/LondonVIPDbContextModelSnapshot.cs  |    6 [32m+[m
+ src/LondonVIP.Shared/Models/PricingRule.cs         |    4 [32m+[m
+ .../Pricing/PricingAirportLookupDto.cs             |    3 [32m+[m
+ .../Pricing/PricingRuleCreateDto.cs                |   14 [32m+[m
+ .../Pricing/PricingRuleDetailDto.cs                |   19 [32m+[m
+ .../Pricing/PricingRuleListItemDto.cs              |   18 [32m+[m
+ .../Pricing/PricingRuleStatusDto.cs                |    6 [32m+[m
+ .../Pricing/PricingRuleUpdateDto.cs                |    3 [32m+[m
+ .../Pricing/PricingRuleValidator.cs                |   21 [32m+[m
+ src/LondonVIP.Shared/Pricing/PricingSummaryDto.cs  |   14 [32m+[m
+ src/LondonVIP.Shared/Security/SecurityPolicies.cs  |    2 [32m+[m
+ .../Components/Pages/ErpModulePage.razor           |    1 [31m-[m
+ src/LondonVIP.Web/Components/Pages/Pricing.razor   |   63 [32m++[m
+ .../Components/Pages/Pricing.razor.css             |    1 [32m+[m
+ tests/LondonVIP.Tests/ErpShellTests.cs             |    1 [32m+[m
+ .../PricingAdministrationEndpointTests.cs          |  140 [32m+++[m
+ 20 files changed, 1565 insertions(+), 1 deletion(-)
