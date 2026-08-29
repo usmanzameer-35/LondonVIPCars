@@ -74,6 +74,7 @@ public static class BookingEndpoints
         db.Bookings.Add(booking);
         await db.SaveChangesAsync(cancellationToken);
         await audit.WriteAsync("BookingCreated", "Booking", "Succeeded", SecurityEventSeverity.Information, "Booking created.", "Booking", booking.Id.ToString(), company.CompanyId, cancellationToken);
+        if (booking.CorporateAccountId.HasValue) await audit.WriteAsync("CorporateAccountAssignedToBooking", "CorporateAccounts", "Succeeded", SecurityEventSeverity.Information, "Corporate account linked to booking.", "Booking", booking.Id.ToString(), company.CompanyId, cancellationToken);
 
         var created = await BookingQuery(db, company.CompanyId).SingleAsync(item => item.Id == booking.Id, cancellationToken);
         return Results.Created($"/api/bookings/{booking.Id}", ToDetail(created));
@@ -88,10 +89,12 @@ public static class BookingEndpoints
         var booking = await db.Bookings.SingleOrDefaultAsync(item => item.Id == id && item.CompanyId == company.CompanyId, cancellationToken);
         if (booking is null) return Results.NotFound();
 
+        var previousCorporateAccountId = booking.CorporateAccountId;
         Apply(request, booking);
         booking.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
         await audit.WriteAsync("BookingUpdated", "Booking", "Succeeded", SecurityEventSeverity.Information, "Booking operational details updated.", "Booking", id.ToString(), company.CompanyId, cancellationToken);
+        if (previousCorporateAccountId != booking.CorporateAccountId) await audit.WriteAsync(booking.CorporateAccountId.HasValue ? "CorporateAccountAssignedToBooking" : "CorporateAccountRemovedFromBooking", "CorporateAccounts", "Succeeded", SecurityEventSeverity.Information, booking.CorporateAccountId.HasValue ? "Corporate account linked to booking." : "Corporate account removed from booking.", "Booking", id.ToString(), company.CompanyId, cancellationToken);
 
         var updated = await BookingQuery(db, company.CompanyId).SingleAsync(item => item.Id == id, cancellationToken);
         return Results.Ok(ToDetail(updated));
@@ -124,13 +127,15 @@ public static class BookingEndpoints
                 .Select(item => new BookingLookupItemDto(item.Id, item.FirstName + " " + item.LastName)).ToListAsync(cancellationToken),
             Airports = await db.Airports.AsNoTracking().Where(item => item.IsActive).OrderBy(item => item.Name)
                 .Select(item => new AirportLookupItemDto(item.Id, item.Code, item.Name)).ToListAsync(cancellationToken)
+            ,CorporateAccounts = await db.CorporateAccounts.AsNoTracking().Where(item => item.CompanyId == company.CompanyId && item.IsActive && !item.IsOnHold)
+                .OrderBy(item => item.AccountName).Select(item => new BookingLookupItemDto(item.Id, item.AccountNumber + " — " + item.AccountName)).ToListAsync(cancellationToken)
         };
         return Results.Ok(result);
     }
 
     private static IQueryable<Booking> BookingQuery(LondonVIPDbContext db, Guid companyId) =>
         db.Bookings.AsNoTracking()
-            .Include(item => item.Customer).Include(item => item.Driver).Include(item => item.Airport)
+            .Include(item => item.Customer).Include(item => item.Driver).Include(item => item.Airport).Include(item => item.CorporateAccount)
             .Where(item => item.CompanyId == companyId);
 
     private static BookingDetailDto ToDetail(Booking booking) => new()
@@ -139,6 +144,10 @@ public static class BookingEndpoints
         BookingReference = booking.BookingReference,
         CustomerId = booking.CustomerId,
         CustomerName = $"{booking.Customer.FirstName} {booking.Customer.LastName}".Trim(),
+        CorporateAccountId = booking.CorporateAccountId,
+        CorporateAccountName = booking.CorporateAccount?.AccountName,
+        PurchaseOrderReference = booking.PurchaseOrderReference,
+        BillingReference = booking.BillingReference,
         PickupAddress = booking.PickupAddress,
         Destination = booking.Destination,
         PickupDateTime = booking.PickupDateTime,
@@ -167,6 +176,9 @@ public static class BookingEndpoints
     private static void Apply(BookingCreateDto request, Booking booking)
     {
         booking.CustomerId = request.CustomerId;
+        booking.CorporateAccountId = request.CorporateAccountId;
+        booking.PurchaseOrderReference = NullIfWhiteSpace(request.PurchaseOrderReference);
+        booking.BillingReference = NullIfWhiteSpace(request.BillingReference);
         booking.PickupAddress = request.PickupAddress.Trim();
         booking.Destination = request.Destination.Trim();
         booking.PickupDateTime = request.PickupDateTime;
@@ -195,6 +207,16 @@ public static class BookingEndpoints
             errors["driverId"] = ["Driver was not found for the current company."];
         if (request.AirportId is { } airportId && !await db.Airports.AnyAsync(item => item.Id == airportId && item.IsActive, cancellationToken))
             errors["airportId"] = ["Airport was not found."];
+        if (request.PurchaseOrderReference?.Length > 100) errors["purchaseOrderReference"] = ["Purchase order reference must not exceed 100 characters."];
+        if (request.BillingReference?.Length > 100) errors["billingReference"] = ["Billing reference must not exceed 100 characters."];
+        if (request.CorporateAccountId is { } accountId)
+        {
+            var account = await db.CorporateAccounts.SingleOrDefaultAsync(item => item.Id == accountId && item.CompanyId == companyId, cancellationToken);
+            if (account is null) errors["corporateAccountId"] = ["Corporate account was not found for the current company."];
+            else if (!account.IsActive) errors["corporateAccountId"] = ["Corporate account is inactive."];
+            else if (account.IsOnHold) errors["corporateAccountId"] = ["Corporate account is on hold and cannot be used for a new charge booking."];
+            else if (account.PurchaseOrderRequired && string.IsNullOrWhiteSpace(request.PurchaseOrderReference)) errors["purchaseOrderReference"] = ["A purchase order reference is required for this corporate account."];
+        }
     }
 
     private static string? NullIfWhiteSpace(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

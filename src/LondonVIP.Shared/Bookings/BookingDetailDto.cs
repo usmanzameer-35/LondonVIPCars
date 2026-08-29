@@ -8,6 +8,10 @@ public sealed class BookingDetailDto
     public string BookingReference { get; set; } = string.Empty;
     public Guid CustomerId { get; set; }
     public string CustomerName { get; set; } = string.Empty;
+    public Guid? CorporateAccountId { get; set; }
+    public string? CorporateAccountName { get; set; }
+    public string? PurchaseOrderReference { get; set; }
+    public string? BillingReference { get; set; }
     public string PickupAddress { get; set; } = string.Empty;
     public string Destination { get; set; } = string.Empty;
     public DateTimeOffset PickupDateTime { get; set; }

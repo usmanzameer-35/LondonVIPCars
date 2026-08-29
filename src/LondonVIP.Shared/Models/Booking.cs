@@ -14,6 +14,11 @@ public class Booking
 
     public Customer Customer { get; set; } = null!;
 
+    public Guid? CorporateAccountId { get; set; }
+    public CorporateAccount? CorporateAccount { get; set; }
+    public string? PurchaseOrderReference { get; set; }
+    public string? BillingReference { get; set; }
+
     public string PickupAddress { get; set; } = string.Empty;
 
     public string Destination { get; set; } = string.Empty;

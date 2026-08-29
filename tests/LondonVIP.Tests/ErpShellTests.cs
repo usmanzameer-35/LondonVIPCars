@@ -45,6 +45,7 @@ public class ErpShellTests
     [InlineData("/erp/dispatch", "Dispatch", "Dispatch")]
     [InlineData("/erp/customers", "Customers", "Customers")]
     [InlineData("/erp/pricing", "Pricing", "Pricing")]
+    [InlineData("/erp/accounts", "Corporate accounts", "Manage tenant-owned business accounts")]
     [InlineData("/erp/drivers", "Drivers", "Manage operational availability")]
     [InlineData("/erp/fleet", "Fleet", "Maintain company vehicles")]
     [InlineData("/erp/leads", "Leads &amp; CRM", "Conversion reporting")]

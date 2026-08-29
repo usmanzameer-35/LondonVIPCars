@@ -9,6 +9,9 @@
 
             <div class="editor-section"><h3>Journey &amp; customer</h3><div class="editor-grid">
                 <label><span>Customer *</span><select required @bind="Model.CustomerId"><option value="">Select customer</option>@foreach (var item in Lookups.Customers) { <option value="@item.Id">@item.Label</option> }</select></label>
+                <label><span>Corporate account</span><select @bind="Model.CorporateAccountId"><option value="">Retail booking</option>@foreach (var item in Lookups.CorporateAccounts) { <option value="@item.Id">@item.Label</option> }</select></label>
+                <label><span>Purchase order reference</span><input maxlength="100" @bind="Model.PurchaseOrderReference" /></label>
+                <label><span>Billing reference</span><input maxlength="100" @bind="Model.BillingReference" /></label>
                 <label><span>Pickup date &amp; time *</span><input type="datetime-local" required value="@PickupLocal" @onchange="UpdatePickup" /></label>
                 <label class="wide"><span>Pickup address *</span><input required @bind="Model.PickupAddress" /></label>
                 <label class="wide"><span>Destination *</span><input required @bind="Model.Destination" /></label>

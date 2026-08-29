@@ -77,6 +77,9 @@ public static class Program
             .AddPolicy(SecurityPolicies.DriverFleetRead, policy => policy.RequireRole(SecurityRoles.SuperAdmin, SecurityRoles.Admin, SecurityRoles.Dispatcher, SecurityRoles.Finance))
             .AddPolicy(SecurityPolicies.DriverFleetWrite, policy => policy.RequireRole(SecurityRoles.SuperAdmin, SecurityRoles.Admin))
             .AddPolicy(SecurityPolicies.DriverOperations, policy => policy.RequireRole(SecurityRoles.SuperAdmin, SecurityRoles.Admin, SecurityRoles.Dispatcher))
+            .AddPolicy(SecurityPolicies.CorporateAccountsRead, policy => policy.RequireRole(SecurityRoles.SuperAdmin, SecurityRoles.Admin, SecurityRoles.Dispatcher, SecurityRoles.Finance))
+            .AddPolicy(SecurityPolicies.CorporateAccountsWrite, policy => policy.RequireRole(SecurityRoles.SuperAdmin, SecurityRoles.Admin))
+            .AddPolicy(SecurityPolicies.CorporateAccountsFinancialWrite, policy => policy.RequireRole(SecurityRoles.SuperAdmin, SecurityRoles.Admin, SecurityRoles.Finance))
             .AddPolicy(SecurityPolicies.CompanyAdministration, policy => policy.RequireRole(SecurityRoles.SuperAdmin, SecurityRoles.Admin))
             .AddPolicy(SecurityPolicies.PlatformAdministration, policy => policy.RequireRole(SecurityRoles.SuperAdmin));
         builder.Services.AddRateLimiter(options =>
@@ -144,6 +147,7 @@ public static class Program
         app.MapPricingAdministrationEndpoints();
         app.MapDriverEndpoints();
         app.MapVehicleEndpoints();
+        app.MapCorporateAccountEndpoints();
 
         var summaries = new[]
         {

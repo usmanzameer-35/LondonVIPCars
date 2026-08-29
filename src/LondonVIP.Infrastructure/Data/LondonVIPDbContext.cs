@@ -29,6 +29,7 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
     public DbSet<CompanyBranding> CompanyBranding => Set<CompanyBranding>();
 
     public DbSet<SecurityAuditEvent> SecurityAuditEvents => Set<SecurityAuditEvent>();
+    public DbSet<CorporateAccount> CorporateAccounts => Set<CorporateAccount>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -59,12 +60,15 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
             entity.Property(booking => booking.FlightNumber).HasMaxLength(20);
             entity.Property(booking => booking.CustomerNotes).HasMaxLength(2000);
             entity.Property(booking => booking.InternalNotes).HasMaxLength(4000);
+            entity.Property(booking => booking.PurchaseOrderReference).HasMaxLength(100);
+            entity.Property(booking => booking.BillingReference).HasMaxLength(100);
             entity.Property(booking => booking.BaseFare).HasPrecision(18, 2);
             entity.Property(booking => booking.Extras).HasPrecision(18, 2);
             entity.Property(booking => booking.TotalFare).HasPrecision(18, 2);
             entity.HasIndex(booking => new { booking.CompanyId, booking.BookingReference }).IsUnique();
             entity.HasIndex(booking => new { booking.CompanyId, booking.PickupDateTime });
             entity.HasIndex(booking => new { booking.CompanyId, booking.Status });
+            entity.HasIndex(booking => new { booking.CompanyId, booking.CorporateAccountId });
             entity.HasOne(booking => booking.Company).WithMany(company => company.Bookings)
                 .HasForeignKey(booking => booking.CompanyId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(booking => booking.Customer).WithMany().HasForeignKey(booking => booking.CustomerId)
@@ -73,6 +77,32 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(booking => booking.Airport).WithMany().HasForeignKey(booking => booking.AirportId)
                 .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(booking => booking.CorporateAccount).WithMany().HasForeignKey(booking => booking.CorporateAccountId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<CorporateAccount>(entity =>
+        {
+            entity.Property(x => x.AccountNumber).HasMaxLength(30);
+            entity.Property(x => x.AccountName).HasMaxLength(200);
+            entity.Property(x => x.TradingName).HasMaxLength(200);
+            entity.Property(x => x.PrimaryContactName).HasMaxLength(150);
+            entity.Property(x => x.Email).HasMaxLength(254);
+            entity.Property(x => x.Phone).HasMaxLength(30);
+            entity.Property(x => x.BillingEmail).HasMaxLength(254);
+            entity.Property(x => x.AddressLine1).HasMaxLength(250);
+            entity.Property(x => x.AddressLine2).HasMaxLength(250);
+            entity.Property(x => x.TownCity).HasMaxLength(100);
+            entity.Property(x => x.Postcode).HasMaxLength(20);
+            entity.Property(x => x.Country).HasMaxLength(100);
+            entity.Property(x => x.DefaultPurchaseOrderReference).HasMaxLength(100);
+            entity.Property(x => x.Notes).HasMaxLength(4000);
+            entity.Property(x => x.CreditLimit).HasPrecision(18, 2);
+            entity.Property(x => x.CurrentBalance).HasPrecision(18, 2);
+            entity.HasIndex(x => new { x.CompanyId, x.AccountNumber }).IsUnique();
+            entity.HasIndex(x => new { x.CompanyId, x.IsActive });
+            entity.HasIndex(x => new { x.CompanyId, x.IsOnHold });
+            entity.HasOne(x => x.Company).WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Customer>(entity =>

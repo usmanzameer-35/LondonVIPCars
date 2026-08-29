@@ -8,4 +8,5 @@ public sealed class BookingLookupsDto
     public IReadOnlyList<BookingLookupItemDto> Customers { get; set; } = [];
     public IReadOnlyList<BookingLookupItemDto> Drivers { get; set; } = [];
     public IReadOnlyList<AirportLookupItemDto> Airports { get; set; } = [];
+    public IReadOnlyList<BookingLookupItemDto> CorporateAccounts { get; set; } = [];
 }

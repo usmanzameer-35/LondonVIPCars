@@ -5,6 +5,9 @@ namespace LondonVIP.Shared.Bookings;
 public class BookingCreateDto
 {
     public Guid CustomerId { get; set; }
+    public Guid? CorporateAccountId { get; set; }
+    public string? PurchaseOrderReference { get; set; }
+    public string? BillingReference { get; set; }
     public string PickupAddress { get; set; } = string.Empty;
     public string Destination { get; set; } = string.Empty;
     public DateTimeOffset PickupDateTime { get; set; }
