@@ -77,6 +77,10 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
 
         modelBuilder.Entity<Customer>(entity =>
         {
+            entity.Property(customer => customer.SecondaryPhone).HasMaxLength(30);
+            entity.Property(customer => customer.Address).HasMaxLength(500);
+            entity.Property(customer => customer.Postcode).HasMaxLength(20);
+            entity.Property(customer => customer.Notes).HasMaxLength(4000);
             entity.HasIndex(customer => new { customer.CompanyId, customer.Email });
             entity.HasOne(customer => customer.Company).WithMany(company => company.Customers)
                 .HasForeignKey(customer => customer.CompanyId).OnDelete(DeleteBehavior.Restrict);

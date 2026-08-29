@@ -1,0 +1,81 @@
+@page "/erp/customers"
+@attribute [Authorize]
+@layout AdminLayout
+@rendermode InteractiveServer
+@using LondonVIP.Shared.Customers
+@using LondonVIP.Shared.Models
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Customers | London VIP Cars ERP</PageTitle>
+
+<div class="customers-page">
+    <header class="customers-heading"><div><span>CRM</span><h1>Customers</h1><p>Tenant-safe passenger records and journey history.</p></div><button type="button" class="primary" @onclick="NewCustomer">+ New customer</button></header>
+    <section class="customer-filters" aria-label="Customer filters"><label><span>Search customers</span><input type="search" placeholder="Name, email, phone or postcode" @bind="Search" @bind:event="oninput" /></label><label><span>Status</span><select @bind="Status"><option value="all">All customers</option><option value="active">Active</option><option value="inactive">Inactive</option></select></label><button type="button" @onclick="LoadAsync">Refresh</button></section>
+
+    @if (Loading) { <div class="customer-state">Loading customer records...</div> }
+    else if (!string.IsNullOrEmpty(Error)) { <div class="customer-state error" role="alert">@Error</div> }
+    else if (Filtered.Count == 0) { <div class="customer-empty"><h2>No customers found</h2><p>@(CustomerItems.Count == 0 ? "There are no customers in the current company database." : "No records match the current filters.")</p></div> }
+    else
+    {
+        <div class="customer-table-wrap"><table><thead><tr><th>Customer</th><th>Contact</th><th>Postcode</th><th>Status</th><th>Bookings</th><th>Last booking</th><th>Total spend</th><th></th></tr></thead><tbody>
+        @foreach (var customer in Filtered)
+        {
+            <tr><td data-label="Customer"><strong>@customer.FullName</strong></td><td data-label="Contact"><span>@(string.IsNullOrEmpty(customer.Phone) ? "—" : customer.Phone)</span><small>@(string.IsNullOrEmpty(customer.Email) ? "No email" : customer.Email)</small></td><td data-label="Postcode">@(customer.Postcode ?? "—")</td><td data-label="Status"><span class="status @(customer.IsActive ? "active" : "inactive")">@(customer.IsActive ? "Active" : "Inactive")</span></td><td data-label="Bookings">@customer.TotalBookings</td><td data-label="Last booking">@(customer.LastBookingDate?.LocalDateTime.ToString("dd MMM yyyy") ?? "—")</td><td data-label="Total spend">@customer.TotalSpend.ToString("C", UkCulture)</td><td><button type="button" class="view" @onclick="() => OpenCustomerAsync(customer.Id)">View</button></td></tr>
+        }
+        </tbody></table></div>
+    }
+</div>
+
+@if (Selected is not null)
+{
+    <div class="customer-panel-backdrop"><section class="customer-panel" role="dialog" aria-modal="true" aria-labelledby="customer-title"><header><div><span>Customer record</span><h2 id="customer-title">@Selected.FullName</h2></div><button type="button" @onclick="ClosePanel" aria-label="Close customer">×</button></header>
+        <div class="summary-grid"><div><strong>@Selected.Activity.TotalBookings</strong><span>Total bookings</span></div><div><strong>@Selected.Activity.UpcomingBookings</strong><span>Upcoming</span></div><div><strong>@Selected.Activity.CompletedBookings</strong><span>Completed</span></div><div><strong>@Selected.Activity.TotalSpend.ToString("C", UkCulture)</strong><span>Completed spend</span></div></div>
+        <section class="details"><h3>Contact details</h3><dl><div><dt>Email</dt><dd>@Value(Selected.Email)</dd></div><div><dt>Phone</dt><dd>@Value(Selected.Phone)</dd></div><div><dt>Secondary phone</dt><dd>@Value(Selected.SecondaryPhone)</dd></div><div><dt>Postcode</dt><dd>@Value(Selected.Postcode)</dd></div><div class="wide"><dt>Address</dt><dd>@Value(Selected.Address)</dd></div><div class="wide"><dt>Notes</dt><dd class="notes">@Value(Selected.Notes)</dd></div><div><dt>Last journey</dt><dd>@(Selected.Activity.LastJourney?.LocalDateTime.ToString("dd MMM yyyy, HH:mm") ?? "—")</dd></div></dl></section>
+        <section class="history"><div class="history-title"><h3>Booking history</h3><a href="/erp/bookings?customerId=@Selected.Id">Create booking</a></div>
+            @if (History.Count == 0) { <p>No bookings recorded for this customer.</p> }
+            else { @foreach (var booking in History) { <article><div><strong>@booking.BookingReference</strong><span>@booking.PickupDateTime.LocalDateTime.ToString("dd MMM yyyy, HH:mm")</span></div><p>@booking.PickupAddress <small>to</small> @booking.Destination</p><div class="history-meta"><span>@Display(booking.Status)</span><span>@Display(booking.VehicleType)</span><span>@booking.TotalFare.ToString("C", UkCulture)</span></div></article> } }
+        </section>
+        <footer><button type="button" class="secondary" @onclick="EditSelected">Edit customer</button><button type="button" class="primary" @onclick="ClosePanel">Close</button></footer>
+    </section></div>
+}
+
+@if (Editing)
+{
+    <div class="customer-panel-backdrop"><section class="customer-editor" role="dialog" aria-modal="true" aria-labelledby="editor-title"><header><div><span>@(EditingId.HasValue ? "Edit customer" : "New customer")</span><h2 id="editor-title">@(EditingId.HasValue ? EditorTitle : "Create customer")</h2></div><button type="button" @onclick="CancelEdit" aria-label="Close editor">×</button></header>
+        <EditForm Model="Editor" OnSubmit="SaveAsync">
+            @if (SaveErrors.Count > 0) { <div class="save-errors" role="alert"><strong>Please review the customer.</strong><ul>@foreach (var error in SaveErrors) { <li>@error</li> }</ul></div> }
+            <div class="form-grid"><label><span>First name *</span><input required maxlength="100" @bind="Editor.FirstName" /></label><label><span>Last name *</span><input required maxlength="100" @bind="Editor.LastName" /></label><label><span>Email</span><input type="email" maxlength="254" @bind="Editor.Email" /></label><label><span>Phone</span><input maxlength="30" @bind="Editor.Phone" /></label><label><span>Secondary phone</span><input maxlength="30" @bind="Editor.SecondaryPhone" /></label><label><span>Postcode</span><input maxlength="20" @bind="Editor.Postcode" /></label><label class="wide"><span>Address</span><textarea rows="2" maxlength="500" @bind="Editor.Address"></textarea></label><label class="wide"><span>Internal customer notes</span><textarea rows="5" maxlength="4000" @bind="Editor.Notes"></textarea></label><label class="toggle wide"><input type="checkbox" @bind="Editor.IsActive" /><span><strong>Active customer</strong><small>Inactive records remain available in journey history.</small></span></label></div>
+            <p class="contact-hint">At least one contact method—email or phone—is required.</p><footer><button type="button" class="secondary" @onclick="CancelEdit">Cancel</button><button type="submit" class="primary" disabled="@Saving">@(Saving ? "Saving..." : "Save customer")</button></footer>
+        </EditForm>
+    </section></div>
+}
+
+@code {
+    private static readonly System.Globalization.CultureInfo UkCulture = System.Globalization.CultureInfo.GetCultureInfo("en-GB");
+    private List<CustomerListItemDto> CustomerItems { get; set; } = [];
+    private CustomerDetailDto? Selected { get; set; }
+    private List<CustomerBookingHistoryItemDto> History { get; set; } = [];
+    private CustomerUpdateDto Editor { get; set; } = new();
+    private Guid? EditingId { get; set; }
+    private string EditorTitle { get; set; } = string.Empty;
+    private string Search { get; set; } = string.Empty;
+    private string Status { get; set; } = "all";
+    private bool Loading { get; set; } = true;
+    private bool Editing { get; set; }
+    private bool Saving { get; set; }
+    private string? Error { get; set; }
+    private List<string> SaveErrors { get; } = [];
+    private List<CustomerListItemDto> Filtered => CustomerItems.Where(item => (string.IsNullOrWhiteSpace(Search) || $"{item.FullName} {item.Email} {item.Phone} {item.Postcode}".Contains(Search, StringComparison.OrdinalIgnoreCase)) && (Status == "all" || item.IsActive == (Status == "active"))).ToList();
+    protected override Task OnInitializedAsync() => LoadAsync();
+    private async Task LoadAsync() { Loading = true; Error = null; try { CustomerItems = await Client().GetFromJsonAsync<List<CustomerListItemDto>>("api/customers") ?? []; } catch { Error = "Customers could not be loaded. Make sure LondonVIP.Api is running and your account has access."; } finally { Loading = false; } }
+    private async Task OpenCustomerAsync(Guid id) { try { var detail = Client().GetFromJsonAsync<CustomerDetailDto>($"api/customers/{id}"); var history = Client().GetFromJsonAsync<List<CustomerBookingHistoryItemDto>>($"api/customers/{id}/bookings"); await Task.WhenAll(detail, history); Selected = detail.Result; History = history.Result ?? []; } catch { Error = "The customer record could not be opened."; } }
+    private void NewCustomer() { Selected = null; EditingId = null; EditorTitle = string.Empty; Editor = new CustomerUpdateDto { IsActive = true }; SaveErrors.Clear(); Editing = true; }
+    private void EditSelected() { if (Selected is null) return; EditingId = Selected.Id; EditorTitle = Selected.FullName; Editor = new CustomerUpdateDto { FirstName = Selected.FirstName, LastName = Selected.LastName, Email = Selected.Email, Phone = Selected.Phone, SecondaryPhone = Selected.SecondaryPhone, Address = Selected.Address, Postcode = Selected.Postcode, Notes = Selected.Notes, IsActive = Selected.IsActive }; Selected = null; SaveErrors.Clear(); Editing = true; }
+    private async Task SaveAsync() { Saving = true; SaveErrors.Clear(); try { using var response = EditingId is { } id ? await Client().PutAsJsonAsync($"api/customers/{id}", Editor) : await Client().PostAsJsonAsync("api/customers", Editor); if (response.IsSuccessStatusCode) { Editing = false; await LoadAsync(); } else if (response.StatusCode == System.Net.HttpStatusCode.BadRequest) { var problem = await response.Content.ReadFromJsonAsync<ValidationResponse>(); SaveErrors.AddRange(problem?.Errors.SelectMany(item => item.Value) ?? ["Please check the customer details."]); } else if (response.StatusCode == System.Net.HttpStatusCode.Forbidden) SaveErrors.Add("Your role cannot create or edit customer records."); else SaveErrors.Add("The customer could not be saved."); } catch { SaveErrors.Add("The API could not be reached. No changes were saved."); } finally { Saving = false; } }
+    private void ClosePanel() => Selected = null;
+    private void CancelEdit() => Editing = false;
+    private HttpClient Client() => HttpClientFactory.CreateClient("LondonVIP.Api");
+    private static string Value(string? value) => string.IsNullOrWhiteSpace(value) ? "—" : value;
+    private static string Display<T>(T value) where T : Enum => System.Text.RegularExpressions.Regex.Replace(value.ToString(), "([a-z])([A-Z])", "$1 $2");
+    private sealed class ValidationResponse { public Dictionary<string, string[]> Errors { get; set; } = []; }
+}

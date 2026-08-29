@@ -1,32 +1,14 @@
-namespace LondonVIP.Shared.Models;
+namespace LondonVIP.Shared.Customers;
 
-public class Customer
+public class CustomerCreateDto
 {
-    public Guid Id { get; set; }
-
-    public Guid CompanyId { get; set; }
-
-    public Company Company { get; set; } = null!;
-
     public string FirstName { get; set; } = string.Empty;
-
     public string LastName { get; set; } = string.Empty;
-
     public string Email { get; set; } = string.Empty;
-
     public string Phone { get; set; } = string.Empty;
-
     public string? SecondaryPhone { get; set; }
-
     public string? Address { get; set; }
-
     public string? Postcode { get; set; }
-
     public string? Notes { get; set; }
-
-    public DateTimeOffset CreatedAt { get; set; }
-
-    public DateTimeOffset UpdatedAt { get; set; }
-
-    public bool IsActive { get; set; }
+    public bool IsActive { get; set; } = true;
 }

@@ -43,6 +43,7 @@ public class ErpShellTests
     [InlineData("/erp/quotes", "Quotes", "Development preview")]
     [InlineData("/erp/bookings", "Bookings", "New booking")]
     [InlineData("/erp/dispatch", "Dispatch", "Dispatch")]
+    [InlineData("/erp/customers", "Customers", "Customers")]
     [InlineData("/erp/leads", "Leads &amp; CRM", "Conversion reporting")]
     [InlineData("/erp/website-cms", "Website / CMS", "Homepage management")]
     [InlineData("/erp/insights", "Insights / Travel Hub", "TfL / TPH updates")]
