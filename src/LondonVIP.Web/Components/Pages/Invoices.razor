@@ -1,0 +1,205 @@
+@page "/erp/invoicing"
+@attribute [Authorize]
+@layout AdminLayout
+@rendermode InteractiveServer
+@using LondonVIP.Shared.Invoices
+@using LondonVIP.Shared.Models
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Invoicing | London VIP Cars ERP</PageTitle>
+
+<div class="invoices-page">
+    <header>
+        <div>
+            <span>Finance</span>
+            <h1>Invoicing</h1>
+            <p>Prepare customer and corporate invoicing workflows.</p>
+        </div>
+        <button class="primary" @onclick="New">+ Create invoice</button>
+    </header>
+
+    @if(Loading)
+    {
+        <div class="state">Loading invoices...</div>
+    }
+    else if(Error is not null)
+    {
+        <div class="state error">@Error</div>
+    }
+    else
+    {
+        <section class="summary">
+            <div>
+                <strong>@Summary.DraftInvoices</strong>
+                <span>Draft</span>
+            </div>
+            <div>
+                <strong>@Summary.OutstandingInvoices</strong>
+                <span>Outstanding</span>
+            </div>
+            <div>
+                <strong>@Summary.OverdueInvoices</strong>
+                <span>Overdue</span>
+            </div>
+            <div>
+                <strong>@Summary.PaidInvoices</strong>
+                <span>Paid</span>
+            </div>
+            <div>
+                <strong>@Summary.TotalOutstandingAmount.ToString("C")</strong>
+                <span>Total outstanding</span>
+            </div>
+        </section>
+
+        <section class="filters">
+            <label>Search
+                <input type="search" @bind="Search" @bind:event="oninput" placeholder="Invoice number, customer, account"/>
+            </label>
+            <label>Status
+                <select @bind="StatusFilter">
+                    <option value="">All statuses</option>
+                    <option value="Draft">Draft</option>
+                    <option value="Issued">Issued</option>
+                    <option value="PartiallyPaid">Partially paid</option>
+                    <option value="Paid">Paid</option>
+                    <option value="Overdue">Overdue</option>
+                    <option value="Cancelled">Cancelled</option>
+                </select>
+            </label>
+        </section>
+
+        @if(Filtered.Count == 0)
+        {
+            <div class="state">
+                <h2>No invoices found</h2>
+                <p>No invoice records match these filters.</p>
+            </div>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Invoice</th>
+                            <th>Customer/Account</th>
+                            <th>Date</th>
+                            <th>Due date</th>
+                            <th>Status</th>
+                            <th>Total</th>
+                            <th>Paid</th>
+                            <th>Balance</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach(var invoice in Filtered)
+                        {
+                            <tr>
+                                <td data-label="Invoice">
+                                    <strong>@invoice.InvoiceNumber</strong>
+                                </td>
+                                <td data-label="Customer/Account">
+                                    @invoice.CustomerOrAccountName
+                                </td>
+                                <td data-label="Date">
+                                    @invoice.InvoiceDate.LocalDateTime.ToString("dd MMM yyyy")
+                                </td>
+                                <td data-label="Due date">
+                                    @invoice.DueDate.LocalDateTime.ToString("dd MMM yyyy")
+                                </td>
+                                <td data-label="Status">
+                                    <span class="pill @GetStatusClass(invoice.Status)">@invoice.Status</span>
+                                </td>
+                                <td data-label="Total">@invoice.TotalAmount.ToString("C")</td>
+                                <td data-label="Paid">@invoice.AmountPaid.ToString("C")</td>
+                                <td data-label="Balance">@invoice.BalanceDue.ToString("C")</td>
+                                <td>
+                                    <button @onclick="() => View(invoice.Id)">View</button>
+                                    @if(invoice.Status == "Draft")
+                                    {
+                                        <button @onclick="() => Edit(invoice.Id)">Edit</button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    static readonly System.Globalization.CultureInfo Culture = System.Globalization.CultureInfo.GetCultureInfo("en-GB");
+    
+    List<InvoiceListItemDto> Items = [];
+    InvoiceSummaryDto Summary = new();
+    bool Loading = true;
+    string? Error;
+    string Search = "";
+    string StatusFilter = "";
+
+    List<InvoiceListItemDto> Filtered => Items
+        .Where(x => 
+            (string.IsNullOrWhiteSpace(Search) || 
+             $"{x.InvoiceNumber} {x.CustomerOrAccountName}".Contains(Search, StringComparison.OrdinalIgnoreCase)) &&
+            (string.IsNullOrWhiteSpace(StatusFilter) || x.Status == StatusFilter))
+        .ToList();
+
+    protected override Task OnInitializedAsync() => Load();
+
+    HttpClient Client() => HttpClientFactory.CreateClient("LondonVIP.Api");
+
+    async Task Load()
+    {
+        Loading = true;
+        try
+        {
+            var invoicesTask = Client().GetFromJsonAsync<List<InvoiceListItemDto>>("api/invoices");
+            var summaryTask = Client().GetFromJsonAsync<InvoiceSummaryDto>("api/invoices/summary");
+            
+            await Task.WhenAll(invoicesTask, summaryTask);
+            
+            Items = invoicesTask.Result ?? [];
+            Summary = summaryTask.Result ?? new();
+            Error = null;
+        }
+        catch
+        {
+            Error = "Invoices could not be loaded.";
+        }
+        finally
+        {
+            Loading = false;
+        }
+    }
+
+    void New()
+    {
+        // TODO: Implement invoice creation modal
+    }
+
+    async Task View(Guid id)
+    {
+        // TODO: Navigate to invoice detail page or show modal
+        await Task.CompletedTask;
+    }
+
+    async Task Edit(Guid id)
+    {
+        // TODO: Show invoice edit modal
+        await Task.CompletedTask;
+    }
+
+    string GetStatusClass(string status) => status.ToLower() switch
+    {
+        "draft" => "draft",
+        "issued" => "pending",
+        "partiallypaid" => "partial",
+        "paid" => "valid",
+        "overdue" => "error",
+        "cancelled" => "cancelled",
+        _ => ""
+    };
+}

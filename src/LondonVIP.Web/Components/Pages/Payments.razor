@@ -1,0 +1,189 @@
+@page "/erp/payments"
+@attribute [Authorize]
+@layout AdminLayout
+@rendermode InteractiveServer
+@using LondonVIP.Shared.Payments
+@using LondonVIP.Shared.Models
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Payments | London VIP Cars ERP</PageTitle>
+
+<div class="payments-page">
+    <header>
+        <div>
+            <span>Finance</span>
+            <h1>Payments</h1>
+            <p>Track payment status and allocations.</p>
+        </div>
+        <button class="primary" @onclick="New">+ Record payment</button>
+    </header>
+
+    @if(Loading)
+    {
+        <div class="state">Loading payments...</div>
+    }
+    else if(Error is not null)
+    {
+        <div class="state error">@Error</div>
+    }
+    else
+    {
+        <section class="summary">
+            <div>
+                <strong>@Summary.PaymentsReceived.ToString("C")</strong>
+                <span>Total received</span>
+            </div>
+            <div>
+                <strong>@Summary.AllocatedAmount.ToString("C")</strong>
+                <span>Allocated</span>
+            </div>
+            <div>
+                <strong>@Summary.UnallocatedAmount.ToString("C")</strong>
+                <span>Unallocated</span>
+            </div>
+            <div>
+                <strong>@Summary.PaymentCount</strong>
+                <span>Payments</span>
+            </div>
+        </section>
+
+        <section class="filters">
+            <label>Search
+                <input type="search" @bind="Search" @bind:event="oninput" placeholder="Payment reference, customer, account"/>
+            </label>
+            <label>Method
+                <select @bind="MethodFilter">
+                    <option value="">All methods</option>
+                    <option value="Cash">Cash</option>
+                    <option value="BankTransfer">Bank transfer</option>
+                    <option value="Card">Card</option>
+                    <option value="Cheque">Cheque</option>
+                    <option value="Other">Other</option>
+                </select>
+            </label>
+        </section>
+
+        @if(Filtered.Count == 0)
+        {
+            <div class="state">
+                <h2>No payments found</h2>
+                <p>No payment records match these filters.</p>
+            </div>
+        }
+        else
+        {
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Reference</th>
+                            <th>Date</th>
+                            <th>Customer/Account</th>
+                            <th>Method</th>
+                            <th>Amount</th>
+                            <th>Allocated</th>
+                            <th>Unallocated</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach(var payment in Filtered)
+                        {
+                            <tr>
+                                <td data-label="Reference">
+                                    <strong>@payment.PaymentReference</strong>
+                                </td>
+                                <td data-label="Date">
+                                    @payment.PaymentDate.LocalDateTime.ToString("dd MMM yyyy")
+                                </td>
+                                <td data-label="Customer/Account">
+                                    @payment.CustomerOrAccountName
+                                </td>
+                                <td data-label="Method">
+                                    @payment.PaymentMethod
+                                </td>
+                                <td data-label="Amount">@payment.Amount.ToString("C")</td>
+                                <td data-label="Allocated">@payment.AllocatedAmount.ToString("C")</td>
+                                <td data-label="Unallocated">
+                                    <span class="@(payment.UnallocatedAmount > 0 ? "pending" : "valid")">
+                                        @payment.UnallocatedAmount.ToString("C")
+                                    </span>
+                                </td>
+                                <td>
+                                    <button @onclick="() => View(payment.Id)">View</button>
+                                    @if(payment.UnallocatedAmount > 0)
+                                    {
+                                        <button @onclick="() => Allocate(payment.Id)">Allocate</button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    static readonly System.Globalization.CultureInfo Culture = System.Globalization.CultureInfo.GetCultureInfo("en-GB");
+    
+    List<PaymentListItemDto> Items = [];
+    PaymentSummaryDto Summary = new();
+    bool Loading = true;
+    string? Error;
+    string Search = "";
+    string MethodFilter = "";
+
+    List<PaymentListItemDto> Filtered => Items
+        .Where(x => 
+            (string.IsNullOrWhiteSpace(Search) || 
+             $"{x.PaymentReference} {x.CustomerOrAccountName}".Contains(Search, StringComparison.OrdinalIgnoreCase)) &&
+            (string.IsNullOrWhiteSpace(MethodFilter) || x.PaymentMethod == MethodFilter))
+        .ToList();
+
+    protected override Task OnInitializedAsync() => Load();
+
+    HttpClient Client() => HttpClientFactory.CreateClient("LondonVIP.Api");
+
+    async Task Load()
+    {
+        Loading = true;
+        try
+        {
+            var paymentsTask = Client().GetFromJsonAsync<List<PaymentListItemDto>>("api/payments");
+            var summaryTask = Client().GetFromJsonAsync<PaymentSummaryDto>("api/payments/summary");
+            
+            await Task.WhenAll(paymentsTask, summaryTask);
+            
+            Items = paymentsTask.Result ?? [];
+            Summary = summaryTask.Result ?? new();
+            Error = null;
+        }
+        catch
+        {
+            Error = "Payments could not be loaded.";
+        }
+        finally
+        {
+            Loading = false;
+        }
+    }
+
+    void New()
+    {
+        // TODO: Implement payment recording modal
+    }
+
+    async Task View(Guid id)
+    {
+        // TODO: Navigate to payment detail page or show modal
+        await Task.CompletedTask;
+    }
+
+    async Task Allocate(Guid id)
+    {
+        // TODO: Show payment allocation modal
+        await Task.CompletedTask;
+    }
+}

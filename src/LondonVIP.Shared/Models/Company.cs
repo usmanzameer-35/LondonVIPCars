@@ -27,4 +27,6 @@ public class Company
     public ICollection<Vehicle> Vehicles { get; set; } = [];
     public ICollection<Booking> Bookings { get; set; } = [];
     public ICollection<PricingRule> PricingRules { get; set; } = [];
+    public ICollection<Invoice> Invoices { get; set; } = [];
+    public ICollection<Payment> Payments { get; set; } = [];
 }

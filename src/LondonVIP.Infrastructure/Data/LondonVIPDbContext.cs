@@ -31,6 +31,11 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
     public DbSet<SecurityAuditEvent> SecurityAuditEvents => Set<SecurityAuditEvent>();
     public DbSet<CorporateAccount> CorporateAccounts => Set<CorporateAccount>();
 
+    public DbSet<Invoice> Invoices => Set<Invoice>();
+    public DbSet<InvoiceLine> InvoiceLines => Set<InvoiceLine>();
+    public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<PaymentAllocation> PaymentAllocations => Set<PaymentAllocation>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -181,6 +186,92 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
             entity.HasKey(branding => branding.CompanyId);
             entity.HasOne(branding => branding.Company).WithOne(company => company.Branding)
                 .HasForeignKey<CompanyBranding>(branding => branding.CompanyId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Invoice Configuration
+        modelBuilder.Entity<Invoice>(entity =>
+        {
+            entity.Property(invoice => invoice.InvoiceNumber).HasMaxLength(50);
+            entity.Property(invoice => invoice.Subtotal).HasPrecision(18, 2);
+            entity.Property(invoice => invoice.TaxAmount).HasPrecision(18, 2);
+            entity.Property(invoice => invoice.TotalAmount).HasPrecision(18, 2);
+            entity.Property(invoice => invoice.AmountPaid).HasPrecision(18, 2);
+            entity.Property(invoice => invoice.BalanceDue).HasPrecision(18, 2);
+            entity.Property(invoice => invoice.Notes).HasMaxLength(4000);
+            
+            // Tenant-safety indexes
+            entity.HasIndex(invoice => new { invoice.CompanyId, invoice.InvoiceNumber }).IsUnique();
+            entity.HasIndex(invoice => new { invoice.CompanyId, invoice.Status });
+            entity.HasIndex(invoice => new { invoice.CompanyId, invoice.DueDate });
+            entity.HasIndex(invoice => new { invoice.CompanyId, invoice.CorporateAccountId });
+            entity.HasIndex(invoice => new { invoice.CompanyId, invoice.CustomerId });
+            
+            entity.HasOne(invoice => invoice.Company).WithMany(company => company.Invoices)
+                .HasForeignKey(invoice => invoice.CompanyId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(invoice => invoice.CorporateAccount).WithMany()
+                .HasForeignKey(invoice => invoice.CorporateAccountId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(invoice => invoice.Customer).WithMany()
+                .HasForeignKey(invoice => invoice.CustomerId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // InvoiceLine Configuration
+        modelBuilder.Entity<InvoiceLine>(entity =>
+        {
+            entity.Property(line => line.Description).HasMaxLength(500);
+            entity.Property(line => line.Quantity).HasPrecision(12, 2);
+            entity.Property(line => line.UnitPrice).HasPrecision(18, 2);
+            entity.Property(line => line.TaxRate).HasPrecision(5, 2);
+            entity.Property(line => line.LineSubtotal).HasPrecision(18, 2);
+            entity.Property(line => line.TaxAmount).HasPrecision(18, 2);
+            entity.Property(line => line.LineTotal).HasPrecision(18, 2);
+            
+            entity.HasIndex(line => line.InvoiceId);
+            entity.HasIndex(line => line.BookingId);
+            
+            entity.HasOne(line => line.Invoice).WithMany(invoice => invoice.Lines)
+                .HasForeignKey(line => line.InvoiceId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(line => line.Booking).WithMany()
+                .HasForeignKey(line => line.BookingId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Payment Configuration
+        modelBuilder.Entity<Payment>(entity =>
+        {
+            entity.Property(payment => payment.PaymentReference).HasMaxLength(100);
+            entity.Property(payment => payment.Amount).HasPrecision(18, 2);
+            entity.Property(payment => payment.Notes).HasMaxLength(4000);
+            
+            // Tenant-safety indexes
+            entity.HasIndex(payment => new { payment.CompanyId, payment.PaymentReference });
+            entity.HasIndex(payment => new { payment.CompanyId, payment.PaymentDate });
+            entity.HasIndex(payment => new { payment.CompanyId, payment.CorporateAccountId });
+            entity.HasIndex(payment => new { payment.CompanyId, payment.CustomerId });
+            
+            entity.HasOne(payment => payment.Company).WithMany(company => company.Payments)
+                .HasForeignKey(payment => payment.CompanyId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(payment => payment.CorporateAccount).WithMany()
+                .HasForeignKey(payment => payment.CorporateAccountId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(payment => payment.Customer).WithMany()
+                .HasForeignKey(payment => payment.CustomerId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // PaymentAllocation Configuration
+        modelBuilder.Entity<PaymentAllocation>(entity =>
+        {
+            entity.Property(allocation => allocation.Amount).HasPrecision(18, 2);
+            
+            entity.HasIndex(allocation => allocation.PaymentId);
+            entity.HasIndex(allocation => allocation.InvoiceId);
+            
+            entity.HasOne(allocation => allocation.Payment).WithMany(payment => payment.Allocations)
+                .HasForeignKey(allocation => allocation.PaymentId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(allocation => allocation.Invoice).WithMany(invoice => invoice.Allocations)
+                .HasForeignKey(allocation => allocation.InvoiceId).OnDelete(DeleteBehavior.Cascade);
         });
 
         var seedTimestamp = new DateTimeOffset(2026, 8, 28, 0, 0, 0, TimeSpan.Zero);

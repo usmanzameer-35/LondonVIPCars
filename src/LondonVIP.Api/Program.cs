@@ -148,6 +148,8 @@ public static class Program
         app.MapDriverEndpoints();
         app.MapVehicleEndpoints();
         app.MapCorporateAccountEndpoints();
+        app.MapInvoiceEndpoints();
+        app.MapPaymentEndpoints();
 
         var summaries = new[]
         {
