@@ -13,6 +13,19 @@
 
     <section class="booking-filters" aria-label="Booking filters"><label><span>Search bookings</span><input type="search" placeholder="Reference, customer or journey" @bind="Search" @bind:event="oninput" /></label><label><span>Status</span><select @bind="StatusFilter"><option value="">All statuses</option>@foreach (var status in Enum.GetValues<BookingStatus>()) { <option value="@status">@Display(status)</option> }</select></label><button type="button" @onclick="LoadAsync">Refresh</button></section>
 
+    @if (FilteredBookings.Any(b => b.Status == BookingStatus.Completed))
+    {
+        <section class="booking-invoice-panel" aria-label="Booking invoices">
+            <h2>Invoice status</h2>
+            @foreach (var booking in FilteredBookings.Where(b => b.Status == BookingStatus.Completed))
+            {
+                <div class="invoice-row"><span><strong>@booking.BookingReference</strong> — @(booking.InvoiceNumber ?? "Not invoiced")</span>
+                    @if (booking.InvoiceNumber is null) { <button type="button" @onclick="() => CreateInvoiceAsync(booking.Id)">Create Invoice</button> } else { <span class="status-chip">@booking.InvoiceStatus</span> }
+                </div>
+            }
+        </section>
+    }
+
     @if (Loading) { <div class="booking-state">Loading bookings...</div> }
     else if (!string.IsNullOrEmpty(LoadError)) { <div class="booking-state error" role="alert">@LoadError</div> }
     else if (FilteredBookings.Count == 0) { <div class="empty-bookings"><span aria-hidden="true">B</span><h2>No bookings found</h2><p>@(BookingItems.Count == 0 ? "There are no bookings in the current company database yet." : "No bookings match the current filters.")</p><button type="button" @onclick="NewBooking">Create first booking</button></div> }
@@ -98,6 +111,18 @@
         }
         catch (Exception) { SaveErrors.Add("The API could not be reached. No changes were saved."); }
         finally { Saving = false; }
+    }
+
+    private async Task CreateInvoiceAsync(Guid id)
+    {
+        LoadError = null;
+        try
+        {
+            using var response = await Client().PostAsync($"api/bookings/{id}/invoice", null);
+            if (response.IsSuccessStatusCode) await LoadAsync();
+            else LoadError = response.StatusCode == System.Net.HttpStatusCode.BadRequest ? "This booking is not eligible for invoicing." : "The invoice could not be created.";
+        }
+        catch (Exception) { LoadError = "The API could not be reached. No invoice was created."; }
     }
 
     private void CloseEditor() => ShowEditor = false;

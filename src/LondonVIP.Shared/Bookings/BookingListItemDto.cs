@@ -17,4 +17,6 @@ public sealed class BookingListItemDto
     public BookingStatus Status { get; set; }
     public string PaymentStatus { get; set; } = string.Empty;
     public string? DriverName { get; set; }
+    public string? InvoiceNumber { get; set; }
+    public string? InvoiceStatus { get; set; }
 }

@@ -5,6 +5,8 @@ using LondonVIP.Shared.Models;
 using LondonVIP.Shared.Tenancy;
 using LondonVIP.Infrastructure.Security;
 using LondonVIP.Shared.Security;
+using LondonVIP.Shared.Invoicing;
+using LondonVIP.Shared.Invoices;
 using Microsoft.EntityFrameworkCore;
 
 namespace LondonVIP.Api;
@@ -20,8 +22,42 @@ public static class BookingEndpoints
         group.MapPost("", CreateBookingAsync);
         group.MapPut("/{id:guid}", UpdateBookingAsync);
         group.MapPatch("/{id:guid}/status", UpdateStatusAsync);
+        endpoints.MapPost("/api/bookings/{bookingId:guid}/invoice", GenerateInvoiceAsync)
+            .RequireAuthorization(SecurityPolicies.FinanceOperations)
+            .RequireRateLimiting("operations");
         return endpoints;
     }
+
+    private static async Task<IResult> GenerateInvoiceAsync(Guid bookingId, IBookingInvoiceService service, IAuditService audit, ICompanyContext company, CancellationToken cancellationToken)
+    {
+        var result = await service.GenerateInvoiceAsync(bookingId, cancellationToken);
+        if (result.Outcome == InvoiceGenerationOutcome.NotFound)
+        {
+            await audit.WriteAsync("BookingInvoiceGenerationRejected", "Invoice", "NotFound", SecurityEventSeverity.Warning, "Booking invoice generation was requested for a missing booking.", "Booking", bookingId.ToString(), company.CompanyId, cancellationToken);
+            return Results.NotFound();
+        }
+        if (result.Outcome == InvoiceGenerationOutcome.ValidationFailure)
+        {
+            await audit.WriteAsync("BookingInvoiceGenerationRejected", "Invoice", "ValidationFailure", SecurityEventSeverity.Warning, result.Error ?? "Booking is not eligible for invoicing.", "Booking", bookingId.ToString(), company.CompanyId, cancellationToken);
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["booking"] = [result.Error ?? "Booking is not eligible for invoicing."] });
+        }
+
+        var invoice = result.Invoice!;
+        var alreadyExists = result.Outcome == InvoiceGenerationOutcome.AlreadyExists;
+        await audit.WriteAsync(alreadyExists ? "BookingInvoiceAlreadyExists" : "BookingInvoiceCreated", "Invoice", "Succeeded", SecurityEventSeverity.Information,
+            alreadyExists ? "Invoice already existed for booking." : "Invoice created from booking.", "Invoice", invoice.Id.ToString(), company.CompanyId, cancellationToken);
+        return Results.Json(ToInvoiceDetail(invoice), statusCode: alreadyExists ? StatusCodes.Status200OK : StatusCodes.Status201Created);
+    }
+
+    private static InvoiceDetailDto ToInvoiceDetail(Invoice invoice) => new()
+    {
+        Id = invoice.Id, InvoiceNumber = invoice.InvoiceNumber, InvoiceDate = invoice.InvoiceDate, DueDate = invoice.DueDate,
+        Status = invoice.Status.ToString(), CorporateAccountId = invoice.CorporateAccountId, CorporateAccountName = invoice.CorporateAccount?.AccountName,
+        CustomerId = invoice.CustomerId, CustomerName = invoice.Customer is null ? null : $"{invoice.Customer.FirstName} {invoice.Customer.LastName}",
+        Subtotal = invoice.Subtotal, TaxAmount = invoice.TaxAmount, TotalAmount = invoice.TotalAmount, AmountPaid = invoice.AmountPaid,
+        BalanceDue = invoice.BalanceDue, Notes = invoice.Notes, CreatedAt = invoice.CreatedAt, UpdatedAt = invoice.UpdatedAt,
+        Lines = invoice.Lines.Select(line => new InvoiceLineDto { Id = line.Id, BookingId = line.BookingId, Description = line.Description, Quantity = line.Quantity, UnitPrice = line.UnitPrice, TaxRate = line.TaxRate, LineSubtotal = line.LineSubtotal, TaxAmount = line.TaxAmount, LineTotal = line.LineTotal }).ToList()
+    };
 
     private static async Task<IResult> GetBookingsAsync(LondonVIPDbContext db, ICompanyContext company, CancellationToken cancellationToken)
     {
@@ -42,6 +78,8 @@ public static class BookingEndpoints
                 Status = booking.Status,
                 PaymentStatus = booking.PaymentStatus,
                 DriverName = booking.Driver == null ? null : booking.Driver.FirstName + " " + booking.Driver.LastName
+                ,InvoiceNumber = db.InvoiceLines.Where(line => line.BookingId == booking.Id).Select(line => line.Invoice.InvoiceNumber).FirstOrDefault()
+                ,InvoiceStatus = db.InvoiceLines.Where(line => line.BookingId == booking.Id).Select(line => line.Invoice.Status.ToString()).FirstOrDefault()
             }).ToListAsync(cancellationToken);
 
         bookings = bookings.OrderBy(booking => booking.PickupDateTime).ToList();
@@ -52,7 +90,11 @@ public static class BookingEndpoints
     private static async Task<IResult> GetBookingAsync(Guid id, LondonVIPDbContext db, ICompanyContext company, CancellationToken cancellationToken)
     {
         var booking = await BookingQuery(db, company.CompanyId).SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
-        return booking is null ? Results.NotFound() : Results.Ok(ToDetail(booking));
+        if (booking is null) return Results.NotFound();
+        var detail = ToDetail(booking);
+        var invoice = await db.InvoiceLines.AsNoTracking().Where(line => line.BookingId == id && line.Invoice.CompanyId == company.CompanyId).Select(line => new { line.Invoice.Id, line.Invoice.InvoiceNumber, line.Invoice.Status }).FirstOrDefaultAsync(cancellationToken);
+        if (invoice is not null) { detail.InvoiceId = invoice.Id; detail.InvoiceNumber = invoice.InvoiceNumber; detail.InvoiceStatus = invoice.Status.ToString(); }
+        return Results.Ok(detail);
     }
 
     private static async Task<IResult> CreateBookingAsync(BookingCreateDto request, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, CancellationToken cancellationToken)

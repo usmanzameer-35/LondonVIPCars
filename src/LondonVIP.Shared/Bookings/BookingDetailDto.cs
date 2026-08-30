@@ -35,4 +35,7 @@ public sealed class BookingDetailDto
     public string PaymentStatus { get; set; } = string.Empty;
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
+    public Guid? InvoiceId { get; set; }
+    public string? InvoiceNumber { get; set; }
+    public string? InvoiceStatus { get; set; }
 }

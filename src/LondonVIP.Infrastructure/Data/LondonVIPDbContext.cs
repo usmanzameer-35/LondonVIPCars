@@ -32,6 +32,7 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
     public DbSet<CorporateAccount> CorporateAccounts => Set<CorporateAccount>();
 
     public DbSet<Invoice> Invoices => Set<Invoice>();
+    public DbSet<InvoiceNumberSequence> InvoiceNumberSequences => Set<InvoiceNumberSequence>();
     public DbSet<InvoiceLine> InvoiceLines => Set<InvoiceLine>();
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<PaymentAllocation> PaymentAllocations => Set<PaymentAllocation>();
@@ -214,6 +215,14 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
             entity.HasOne(invoice => invoice.Customer).WithMany()
                 .HasForeignKey(invoice => invoice.CustomerId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<InvoiceNumberSequence>(entity =>
+        {
+            entity.HasKey(sequence => sequence.CompanyId);
+            entity.Property(sequence => sequence.NextNumber).IsConcurrencyToken();
+            entity.HasOne(sequence => sequence.Company).WithMany()
+                .HasForeignKey(sequence => sequence.CompanyId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // InvoiceLine Configuration

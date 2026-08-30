@@ -6,6 +6,8 @@ using LondonVIP.Infrastructure.Security;
 using LondonVIP.Api.Security;
 using LondonVIP.Shared.Security;
 using LondonVIP.Shared.Tenancy;
+using LondonVIP.Shared.Invoicing;
+using LondonVIP.Infrastructure.Invoicing;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -97,6 +99,9 @@ public static class Program
         builder.Services.AddScoped<IPricingService, PricingService>();
         builder.Services.AddScoped<ICompanyContext, AuthenticatedCompanyContext>();
         builder.Services.AddScoped<IAuditService, AuditService>();
+        builder.Services.AddScoped<IBookingInvoiceService, BookingInvoiceService>();
+        builder.Services.AddScoped<IInvoiceTotalsCalculator, InvoiceTotalsCalculator>();
+        builder.Services.AddScoped<IInvoiceNumberGenerator, InvoiceNumberGenerator>();
         builder.Services.AddHostedService<IdentityBootstrapper>();
         configureServices?.Invoke(builder.Services);
 
