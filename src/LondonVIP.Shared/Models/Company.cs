@@ -29,4 +29,5 @@ public class Company
     public ICollection<PricingRule> PricingRules { get; set; } = [];
     public ICollection<Invoice> Invoices { get; set; } = [];
     public ICollection<Payment> Payments { get; set; } = [];
+    public ICollection<Quotation> Quotations { get; set; } = [];
 }

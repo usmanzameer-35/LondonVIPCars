@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.Extensions.Logging;
 using LondonVIP.Tests.Infrastructure;
 
 namespace LondonVIP.Tests;
@@ -53,7 +54,7 @@ public class ErpShellTests
     }
 
     [Theory]
-    [InlineData("/erp/quotes", "Quotes", "Development preview")]
+    [InlineData("/erp/quotes", "Quotes", "Create quote")]
     [InlineData("/erp/bookings", "Bookings", "New booking")]
     [InlineData("/erp/dispatch", "Dispatch", "Dispatch")]
     [InlineData("/erp/customers", "Customers", "Customers")]
@@ -84,12 +85,15 @@ public class ErpShellTests
     private static async Task WithWebAppAsync(Func<HttpClient, Task> test)
     {
         await using var app = LondonVIP.Web.WebProgram.CreateApp(["--environment", "Development"], services =>
+        {
+            services.AddLogging(logging => logging.ClearProviders());
             services.AddAuthentication(options =>
             {
                 options.DefaultAuthenticateScheme = TestAuthenticationHandler.SchemeName;
                 options.DefaultChallengeScheme = TestAuthenticationHandler.SchemeName;
                 options.DefaultForbidScheme = TestAuthenticationHandler.SchemeName;
-            }).AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(TestAuthenticationHandler.SchemeName, _ => { }));
+            }).AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(TestAuthenticationHandler.SchemeName, _ => { });
+        });
         app.Urls.Add("http://127.0.0.1:0");
         await app.StartAsync();
         try

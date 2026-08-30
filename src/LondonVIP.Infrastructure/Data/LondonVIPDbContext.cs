@@ -36,6 +36,7 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
     public DbSet<InvoiceLine> InvoiceLines => Set<InvoiceLine>();
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<PaymentAllocation> PaymentAllocations => Set<PaymentAllocation>();
+    public DbSet<Quotation> Quotations => Set<Quotation>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -170,6 +171,17 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
         });
 
         modelBuilder.Entity<Airport>().HasIndex(airport => airport.Code).IsUnique();
+
+        modelBuilder.Entity<Quotation>(entity =>
+        {
+            entity.Property(item=>item.QuoteReference).HasMaxLength(40);entity.Property(item=>item.PickupAddress).HasMaxLength(500);entity.Property(item=>item.Destination).HasMaxLength(500);
+            entity.Property(item=>item.FlightNumber).HasMaxLength(20);entity.Property(item=>item.Notes).HasMaxLength(2000);
+            entity.Property(item=>item.BaseFare).HasPrecision(18,2);entity.Property(item=>item.Extras).HasPrecision(18,2);entity.Property(item=>item.DiscountTotal).HasPrecision(18,2);entity.Property(item=>item.TotalFare).HasPrecision(18,2);
+            entity.HasIndex(item=>new{item.CompanyId,item.QuoteReference}).IsUnique();entity.HasIndex(item=>new{item.CompanyId,item.Status,item.ExpiresAt});entity.HasIndex(item=>new{item.CompanyId,item.CustomerId});entity.HasIndex(item=>item.ConvertedBookingId).IsUnique().HasFilter("[ConvertedBookingId] IS NOT NULL");
+            entity.HasOne(item=>item.Company).WithMany(item=>item.Quotations).HasForeignKey(item=>item.CompanyId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item=>item.Customer).WithMany().HasForeignKey(item=>item.CustomerId).OnDelete(DeleteBehavior.Restrict);entity.HasOne(item=>item.CorporateAccount).WithMany().HasForeignKey(item=>item.CorporateAccountId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(item=>item.ConvertedBooking).WithOne().HasForeignKey<Quotation>(item=>item.ConvertedBookingId).OnDelete(DeleteBehavior.Restrict);entity.HasOne(item=>item.Airport).WithMany().HasForeignKey(item=>item.AirportId).OnDelete(DeleteBehavior.Restrict);
+        });
 
         modelBuilder.Entity<Company>(entity =>
         {

@@ -3,6 +3,7 @@
 @layout CustomerPortalLayout
 @rendermode InteractiveServer
 @using LondonVIP.Shared.CustomerPortal
+@using LondonVIP.Shared.Quotations
 @inject IHttpClientFactory HttpClientFactory
 
 <PageTitle>Customer Portal | London VIP Cars</PageTitle>
@@ -18,9 +19,13 @@
     else
     {
         <section class="identity"><div><span>Welcome back</span><h2>@Dashboard.CustomerName</h2><p>@Dashboard.Email · @Dashboard.Phone</p></div><div class="summary"><article><strong>@Dashboard.Bookings.Count</strong><span>Journeys</span></article><article><strong>@Dashboard.Invoices.Count</strong><span>Invoices</span></article><article><strong>@Dashboard.Payments.Count</strong><span>Payments</span></article></div></section>
-        <nav class="tabs" aria-label="Portal sections"><button class="@(Tab == "bookings" ? "active" : null)" @onclick="ShowBookings">Bookings</button><button class="@(Tab == "invoices" ? "active" : null)" @onclick="ShowInvoices">Invoices</button><button class="@(Tab == "payments" ? "active" : null)" @onclick="ShowPayments">Payments</button></nav>
+        <nav class="tabs" aria-label="Portal sections"><button class="@(Tab == "quotes" ? "active" : null)" @onclick="ShowQuotes">Quotes</button><button class="@(Tab == "bookings" ? "active" : null)" @onclick="ShowBookings">Bookings</button><button class="@(Tab == "invoices" ? "active" : null)" @onclick="ShowInvoices">Invoices</button><button class="@(Tab == "payments" ? "active" : null)" @onclick="ShowPayments">Payments</button></nav>
 
-        @if (Tab == "bookings")
+        @if (Tab == "quotes")
+        {
+            <section class="content"><div class="section-title"><div><span>Travel</span><h2>Quotations</h2></div><p>Review, accept and book active quotations.</p></div><div class="records">@if(Quotes.Count==0){<div class="empty">No quotations are recorded for this customer.</div>}@foreach(var quote in Quotes){<article><div><strong>@quote.QuoteReference</strong><span>@quote.PickupDateTime.LocalDateTime.ToString("dd MMM yyyy, HH:mm") · @quote.VehicleType</span></div><span class="status @StatusClass(quote.Status.ToString())">@quote.Status</span><div class="money"><strong>@quote.TotalFare.ToString("C",UkCulture)</strong><span>Expires @quote.ExpiresAt.LocalDateTime.ToString("dd MMM, HH:mm")</span></div>@if(quote.Status==LondonVIP.Shared.Models.QuoteStatus.Active){<button @onclick="()=>AcceptQuoteAsync(quote.Id)">Accept</button><button @onclick="()=>ConvertQuoteAsync(quote.Id)">Book</button>}</article>}</div></section>
+        }
+        else if (Tab == "bookings")
         {
             <section class="content"><div class="section-title"><div><span>Travel</span><h2>Bookings</h2></div><p>Status updates reflect the operations system.</p></div>
                 @if (Dashboard.Bookings.Count == 0) { <div class="empty">No bookings are recorded for this customer.</div> }
@@ -48,16 +53,21 @@
     private List<CustomerPortalCustomerDto> Customers { get; set; } = [];
     private CustomerPortalDashboardDto? Dashboard { get; set; }
     private CustomerPortalBookingDetailDto? BookingDetail { get; set; }
+    private List<QuotationListItemDto> Quotes { get; set; } = [];
     private Guid? SelectedCustomerId { get; set; }
     private string Tab { get; set; } = "bookings";
     private bool Loading { get; set; } = true;
     private string? Error { get; set; }
     protected override async Task OnInitializedAsync(){try{Customers=await Client().GetFromJsonAsync<List<CustomerPortalCustomerDto>>("api/customer-portal/customers")??[];}catch{Error="The customer portal could not be loaded. Make sure the API is running and your account has access.";}finally{Loading=false;}}
-    private async Task SelectCustomerAsync(ChangeEventArgs args){if(!Guid.TryParse(args.Value?.ToString(),out var id)){SelectedCustomerId=null;Dashboard=null;return;}SelectedCustomerId=id;Loading=true;Error=null;try{Dashboard=await Client().GetFromJsonAsync<CustomerPortalDashboardDto>($"api/customer-portal/{id}");}catch{Error="This customer account could not be loaded.";}finally{Loading=false;}}
+    private async Task SelectCustomerAsync(ChangeEventArgs args){if(!Guid.TryParse(args.Value?.ToString(),out var id)){SelectedCustomerId=null;Dashboard=null;Quotes=[];return;}SelectedCustomerId=id;Loading=true;Error=null;try{var dashboard=Client().GetFromJsonAsync<CustomerPortalDashboardDto>($"api/customer-portal/{id}");var quotes=Client().GetFromJsonAsync<List<QuotationListItemDto>>($"api/customer-portal/{id}/quotes");await Task.WhenAll(dashboard,quotes);Dashboard=dashboard.Result;Quotes=quotes.Result??[];}catch{Error="This customer account could not be loaded.";}finally{Loading=false;}}
     private async Task OpenBookingAsync(Guid bookingId){if(SelectedCustomerId is not {} customerId)return;try{BookingDetail=await Client().GetFromJsonAsync<CustomerPortalBookingDetailDto>($"api/customer-portal/{customerId}/bookings/{bookingId}");}catch{Error="The booking details could not be loaded.";}}
     private void ShowBookings()=>Tab="bookings";
+    private void ShowQuotes()=>Tab="quotes";
     private void ShowInvoices()=>Tab="invoices";
     private void ShowPayments()=>Tab="payments";
+    private async Task AcceptQuoteAsync(Guid id){if(SelectedCustomerId is not {} customerId)return;using var response=await Client().PostAsync($"api/customer-portal/{customerId}/quotes/{id}/accept",null);if(response.IsSuccessStatusCode)await ReloadQuotesAsync(customerId);else Error="The quotation could not be accepted.";}
+    private async Task ConvertQuoteAsync(Guid id){if(SelectedCustomerId is not {} customerId)return;using var response=await Client().PostAsync($"api/customer-portal/{customerId}/quotes/{id}/convert",null);if(response.IsSuccessStatusCode){await ReloadQuotesAsync(customerId);Dashboard=await Client().GetFromJsonAsync<CustomerPortalDashboardDto>($"api/customer-portal/{customerId}");ShowBookings();}else Error="Accept the active quotation before creating a booking.";}
+    private async Task ReloadQuotesAsync(Guid customerId)=>Quotes=await Client().GetFromJsonAsync<List<QuotationListItemDto>>($"api/customer-portal/{customerId}/quotes")??[];
     private HttpClient Client()=>HttpClientFactory.CreateClient("LondonVIP.Api");
     private static string Display(string value)=>System.Text.RegularExpressions.Regex.Replace(value,"([a-z])([A-Z])","$1 $2");
     private static string StatusClass(string value)=>value.ToLowerInvariant();
