@@ -5,6 +5,7 @@ using LondonVIP.Shared.Tenancy;
 using LondonVIP.Infrastructure.Security;
 using Microsoft.EntityFrameworkCore;
 using LondonVIP.Infrastructure.Data;
+using LondonVIP.Shared.Notifications;
 
 namespace LondonVIP.Api;
 
@@ -137,6 +138,7 @@ public static class PaymentEndpoints
         LondonVIPDbContext db,
         ICompanyContext company,
         IAuditService audit,
+        INotificationService notifications,
         CancellationToken cancellationToken)
     {
         var errors = PaymentValidator.Validate(request);
@@ -191,6 +193,7 @@ public static class PaymentEndpoints
             "PaymentRecorded", "Payment", "Succeeded", SecurityEventSeverity.Information,
             $"Payment {payment.PaymentReference} recorded for {payment.Amount:C}.",
             "Payment", payment.Id.ToString(), company.CompanyId, cancellationToken);
+        var recipient=request.CustomerId.HasValue?await db.Customers.Where(x=>x.Id==request.CustomerId).Select(x=>x.Email).SingleAsync(cancellationToken):request.CorporateAccountId?.ToString()??"finance";await notifications.QueueAsync(new(recipient,request.CustomerId.HasValue?NotificationRecipientType.Customer:NotificationRecipientType.CorporateAccount,NotificationType.PaymentReceived,"Payment received",$"Payment {payment.PaymentReference} for {payment.Amount:C} was recorded.","payment-received",CorrelationId:payment.Id.ToString()),cancellationToken);
 
         return Results.Created($"/api/payments/{payment.Id}", ToDetailDto(payment));
     }

@@ -4,6 +4,7 @@
 @rendermode InteractiveServer
 @using LondonVIP.Shared.CustomerPortal
 @using LondonVIP.Shared.Quotations
+@using LondonVIP.Shared.Notifications
 @inject IHttpClientFactory HttpClientFactory
 
 <PageTitle>Customer Portal | London VIP Cars</PageTitle>
@@ -19,7 +20,7 @@
     else
     {
         <section class="identity"><div><span>Welcome back</span><h2>@Dashboard.CustomerName</h2><p>@Dashboard.Email · @Dashboard.Phone</p></div><div class="summary"><article><strong>@Dashboard.Bookings.Count</strong><span>Journeys</span></article><article><strong>@Dashboard.Invoices.Count</strong><span>Invoices</span></article><article><strong>@Dashboard.Payments.Count</strong><span>Payments</span></article></div></section>
-        <nav class="tabs" aria-label="Portal sections"><button class="@(Tab == "quotes" ? "active" : null)" @onclick="ShowQuotes">Quotes</button><button class="@(Tab == "bookings" ? "active" : null)" @onclick="ShowBookings">Bookings</button><button class="@(Tab == "invoices" ? "active" : null)" @onclick="ShowInvoices">Invoices</button><button class="@(Tab == "payments" ? "active" : null)" @onclick="ShowPayments">Payments</button></nav>
+        <nav class="tabs" aria-label="Portal sections"><button class="@(Tab == "quotes" ? "active" : null)" @onclick="ShowQuotes">Quotes</button><button class="@(Tab == "bookings" ? "active" : null)" @onclick="ShowBookings">Bookings</button><button class="@(Tab == "invoices" ? "active" : null)" @onclick="ShowInvoices">Invoices</button><button class="@(Tab == "payments" ? "active" : null)" @onclick="ShowPayments">Payments</button><button class="@(Tab == "messages" ? "active" : null)" @onclick="ShowMessages">Messages</button></nav>
 
         @if (Tab == "quotes")
         {
@@ -36,9 +37,13 @@
         {
             <section class="content"><div class="section-title"><div><span>Finance</span><h2>Invoices</h2></div><p>Read-only account records.</p></div><div class="records">@if (Dashboard.Invoices.Count == 0){<div class="empty">No invoices are recorded for this customer.</div>}@foreach(var invoice in Dashboard.Invoices){<article><div><strong>@invoice.InvoiceNumber</strong><span>Issued @invoice.InvoiceDate.LocalDateTime.ToString("dd MMM yyyy") · Due @invoice.DueDate.LocalDateTime.ToString("dd MMM yyyy")</span></div><span class="status">@Display(invoice.Status)</span><div class="money"><strong>@invoice.TotalAmount.ToString("C", UkCulture)</strong><span>@invoice.BalanceDue.ToString("C", UkCulture) due</span></div></article>}</div></section>
         }
-        else
+        else if (Tab == "payments")
         {
             <section class="content"><div class="section-title"><div><span>Finance</span><h2>Payments</h2></div><p>Payments recorded by the finance team.</p></div><div class="records">@if (Dashboard.Payments.Count == 0){<div class="empty">No payments are recorded for this customer.</div>}@foreach(var payment in Dashboard.Payments){<article><div><strong>@payment.PaymentReference</strong><span>@payment.PaymentDate.LocalDateTime.ToString("dd MMM yyyy") · @Display(payment.PaymentMethod)</span></div><div class="money"><strong>@payment.Amount.ToString("C", UkCulture)</strong><span>@payment.AllocatedAmount.ToString("C", UkCulture) allocated</span></div></article>}</div></section>
+        }
+        else
+        {
+            <section class="content"><div class="section-title"><div><span>Updates</span><h2>Recent notifications</h2></div><p>Travel and account messages sent by London VIP Cars.</p></div><div class="records">@if (Notifications.Count == 0){<div class="empty">No recent notifications are recorded for this customer.</div>}@foreach(var notification in Notifications){<article><div><strong>@notification.Subject</strong><span>@notification.CreatedAt.LocalDateTime.ToString("dd MMM yyyy, HH:mm") · @notification.Channel</span></div><span class="status">@notification.Status</span><p>@notification.Body</p></article>}</div></section>
         }
     }
 </div>
@@ -54,17 +59,19 @@
     private CustomerPortalDashboardDto? Dashboard { get; set; }
     private CustomerPortalBookingDetailDto? BookingDetail { get; set; }
     private List<QuotationListItemDto> Quotes { get; set; } = [];
+    private List<NotificationDto> Notifications { get; set; } = [];
     private Guid? SelectedCustomerId { get; set; }
     private string Tab { get; set; } = "bookings";
     private bool Loading { get; set; } = true;
     private string? Error { get; set; }
     protected override async Task OnInitializedAsync(){try{Customers=await Client().GetFromJsonAsync<List<CustomerPortalCustomerDto>>("api/customer-portal/customers")??[];}catch{Error="The customer portal could not be loaded. Make sure the API is running and your account has access.";}finally{Loading=false;}}
-    private async Task SelectCustomerAsync(ChangeEventArgs args){if(!Guid.TryParse(args.Value?.ToString(),out var id)){SelectedCustomerId=null;Dashboard=null;Quotes=[];return;}SelectedCustomerId=id;Loading=true;Error=null;try{var dashboard=Client().GetFromJsonAsync<CustomerPortalDashboardDto>($"api/customer-portal/{id}");var quotes=Client().GetFromJsonAsync<List<QuotationListItemDto>>($"api/customer-portal/{id}/quotes");await Task.WhenAll(dashboard,quotes);Dashboard=dashboard.Result;Quotes=quotes.Result??[];}catch{Error="This customer account could not be loaded.";}finally{Loading=false;}}
+    private async Task SelectCustomerAsync(ChangeEventArgs args){if(!Guid.TryParse(args.Value?.ToString(),out var id)){SelectedCustomerId=null;Dashboard=null;Quotes=[];Notifications=[];return;}SelectedCustomerId=id;Loading=true;Error=null;try{var dashboard=Client().GetFromJsonAsync<CustomerPortalDashboardDto>($"api/customer-portal/{id}");var quotes=Client().GetFromJsonAsync<List<QuotationListItemDto>>($"api/customer-portal/{id}/quotes");var notifications=Client().GetFromJsonAsync<List<NotificationDto>>($"api/customer-portal/{id}/notifications");await Task.WhenAll(dashboard,quotes,notifications);Dashboard=dashboard.Result;Quotes=quotes.Result??[];Notifications=notifications.Result??[];}catch{Error="This customer account could not be loaded.";}finally{Loading=false;}}
     private async Task OpenBookingAsync(Guid bookingId){if(SelectedCustomerId is not {} customerId)return;try{BookingDetail=await Client().GetFromJsonAsync<CustomerPortalBookingDetailDto>($"api/customer-portal/{customerId}/bookings/{bookingId}");}catch{Error="The booking details could not be loaded.";}}
     private void ShowBookings()=>Tab="bookings";
     private void ShowQuotes()=>Tab="quotes";
     private void ShowInvoices()=>Tab="invoices";
     private void ShowPayments()=>Tab="payments";
+    private void ShowMessages()=>Tab="messages";
     private async Task AcceptQuoteAsync(Guid id){if(SelectedCustomerId is not {} customerId)return;using var response=await Client().PostAsync($"api/customer-portal/{customerId}/quotes/{id}/accept",null);if(response.IsSuccessStatusCode)await ReloadQuotesAsync(customerId);else Error="The quotation could not be accepted.";}
     private async Task ConvertQuoteAsync(Guid id){if(SelectedCustomerId is not {} customerId)return;using var response=await Client().PostAsync($"api/customer-portal/{customerId}/quotes/{id}/convert",null);if(response.IsSuccessStatusCode){await ReloadQuotesAsync(customerId);Dashboard=await Client().GetFromJsonAsync<CustomerPortalDashboardDto>($"api/customer-portal/{customerId}");ShowBookings();}else Error="Accept the active quotation before creating a booking.";}
     private async Task ReloadQuotesAsync(Guid customerId)=>Quotes=await Client().GetFromJsonAsync<List<QuotationListItemDto>>($"api/customer-portal/{customerId}/quotes")??[];

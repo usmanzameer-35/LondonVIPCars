@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using LondonVIP.Infrastructure.Security;
 using LondonVIP.Shared.Security;
 using LondonVIP.Infrastructure.Bookings;
+using LondonVIP.Shared.Notifications;
 
 namespace LondonVIP.Api;
 
@@ -37,14 +38,14 @@ public static class DispatchEndpoints
         return endpoints;
     }
 
-    private static Task<IResult> StartNavigationAsync(Guid bookingId, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, BookingTransitionService transitions, CancellationToken ct) => ApplyTransitionAsync(bookingId, BookingStatus.DriverEnRoute, "DriverNavigationStarted", db, company, audit, transitions, ct);
-    private static Task<IResult> ArriveAsync(Guid bookingId, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, BookingTransitionService transitions, CancellationToken ct) => ApplyTransitionAsync(bookingId, BookingStatus.DriverArrived, "DriverArrived", db, company, audit, transitions, ct);
-    private static Task<IResult> PassengerOnboardAsync(Guid bookingId, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, BookingTransitionService transitions, CancellationToken ct) => ApplyTransitionAsync(bookingId, BookingStatus.PassengerOnBoard, "PassengerOnBoard", db, company, audit, transitions, ct);
-    private static Task<IResult> CompleteAsync(Guid bookingId, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, BookingTransitionService transitions, CancellationToken ct) => ApplyTransitionAsync(bookingId, BookingStatus.Completed, "BookingCompleted", db, company, audit, transitions, ct);
-    private static Task<IResult> NoShowAsync(Guid bookingId, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, BookingTransitionService transitions, CancellationToken ct) => ApplyTransitionAsync(bookingId, BookingStatus.NoShow, "BookingMarkedNoShow", db, company, audit, transitions, ct);
-    private static Task<IResult> UnableToCompleteAsync(Guid bookingId, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, BookingTransitionService transitions, CancellationToken ct) => ApplyTransitionAsync(bookingId, BookingStatus.UnableToComplete, "BookingUnableToComplete", db, company, audit, transitions, ct);
+    private static Task<IResult> StartNavigationAsync(Guid bookingId, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, BookingTransitionService transitions,INotificationService n,CancellationToken ct) => ApplyTransitionAsync(bookingId, BookingStatus.DriverEnRoute, "DriverNavigationStarted", db, company, audit, transitions,n,ct);
+    private static Task<IResult> ArriveAsync(Guid bookingId, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, BookingTransitionService transitions,INotificationService n,CancellationToken ct) => ApplyTransitionAsync(bookingId, BookingStatus.DriverArrived, "DriverArrived", db, company, audit, transitions,n,ct);
+    private static Task<IResult> PassengerOnboardAsync(Guid bookingId, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, BookingTransitionService transitions,INotificationService n,CancellationToken ct) => ApplyTransitionAsync(bookingId, BookingStatus.PassengerOnBoard, "PassengerOnBoard", db, company, audit, transitions,n,ct);
+    private static Task<IResult> CompleteAsync(Guid bookingId, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, BookingTransitionService transitions,INotificationService n,CancellationToken ct) => ApplyTransitionAsync(bookingId, BookingStatus.Completed, "BookingCompleted", db, company, audit, transitions,n,ct);
+    private static Task<IResult> NoShowAsync(Guid bookingId, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, BookingTransitionService transitions,INotificationService n,CancellationToken ct) => ApplyTransitionAsync(bookingId, BookingStatus.NoShow, "BookingMarkedNoShow", db, company, audit, transitions,n,ct);
+    private static Task<IResult> UnableToCompleteAsync(Guid bookingId, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, BookingTransitionService transitions,INotificationService n,CancellationToken ct) => ApplyTransitionAsync(bookingId, BookingStatus.UnableToComplete, "BookingUnableToComplete", db, company, audit, transitions,n,ct);
 
-    private static async Task<IResult> ApplyTransitionAsync(Guid bookingId, BookingStatus next, string eventType, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, BookingTransitionService transitions, CancellationToken ct)
+    private static async Task<IResult> ApplyTransitionAsync(Guid bookingId, BookingStatus next, string eventType, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, BookingTransitionService transitions,INotificationService notifications,CancellationToken ct)
     {
         var booking = await db.Bookings.SingleOrDefaultAsync(x => x.Id == bookingId && x.CompanyId == company.CompanyId, ct);
         if (booking is null) { await AuditCrossTenantAsync(db, audit, bookingId, company.CompanyId, ct); return Results.NotFound(); }
@@ -52,6 +53,7 @@ public static class DispatchEndpoints
         booking.Status = next; booking.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(ct);
         await audit.WriteAsync(eventType, "Dispatch", "Succeeded", SecurityEventSeverity.Information, $"Booking moved to {next}.", "Booking", bookingId.ToString(), company.CompanyId, ct);
+        var type=next switch{BookingStatus.DriverEnRoute=>NotificationType.DriverEnRoute,BookingStatus.DriverArrived=>NotificationType.DriverArrived,BookingStatus.PassengerOnBoard=>NotificationType.PassengerOnboard,BookingStatus.Completed=>NotificationType.BookingCompleted,BookingStatus.NoShow=>NotificationType.NoShow,_=>NotificationType.UnableToComplete};var recipient=await db.Customers.Where(x=>x.Id==booking.CustomerId).Select(x=>x.Email).SingleAsync(ct);await notifications.QueueAsync(new(recipient,NotificationRecipientType.Customer,type,$"Journey {next}",$"Booking {booking.BookingReference} is now {next}.",$"dispatch-{next.ToString().ToLowerInvariant()}",CorrelationId:bookingId.ToString()),ct);
         return OperationalStatuses.Contains(next) ? Results.Ok(await LoadItemAsync(db, bookingId, company.CompanyId, ct)) : Results.Ok(new DispatchStatusUpdateDto { Status = next });
     }
 
@@ -109,6 +111,7 @@ public static class DispatchEndpoints
         LondonVIPDbContext db,
         ICompanyContext company,
         IAuditService audit,
+        INotificationService notifications,
         BookingTransitionService transitions,
         CancellationToken cancellationToken)
     {
@@ -135,6 +138,7 @@ public static class DispatchEndpoints
         booking.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
         await audit.WriteAsync(wasAssigned ? "DriverReassigned" : "DriverAssigned", "Dispatch", "Succeeded", SecurityEventSeverity.Information, "Driver assigned to booking.", "Booking", booking.Id.ToString(), company.CompanyId, cancellationToken);
+        await notifications.QueueAsync(new(driver.Phone,NotificationRecipientType.Driver,NotificationType.DriverAssigned,"New journey assigned",$"Booking {booking.BookingReference} has been assigned to you.","driver-assigned",NotificationChannel.InternalErp,booking.Id.ToString()),cancellationToken);
         return Results.Ok(await LoadItemAsync(db, booking.Id, company.CompanyId, cancellationToken));
     }
 
@@ -144,6 +148,7 @@ public static class DispatchEndpoints
         LondonVIPDbContext db,
         ICompanyContext company,
         IAuditService audit,
+        INotificationService notifications,
         CancellationToken cancellationToken)
     {
         var booking = await db.Bookings.SingleOrDefaultAsync(item => item.Id == bookingId && item.CompanyId == company.CompanyId, cancellationToken);
@@ -156,6 +161,7 @@ public static class DispatchEndpoints
         booking.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
         await audit.WriteAsync("DriverUnassigned", "Dispatch", "Succeeded", SecurityEventSeverity.Information, "Driver unassigned from booking.", "Booking", booking.Id.ToString(), company.CompanyId, cancellationToken);
+        await notifications.QueueAsync(new(booking.CustomerId.ToString(),NotificationRecipientType.Customer,NotificationType.DriverUnassigned,"Driver assignment updated",$"The driver assignment for {booking.BookingReference} was removed.","driver-unassigned",CorrelationId:booking.Id.ToString()),cancellationToken);
         return Results.Ok(await LoadItemAsync(db, booking.Id, company.CompanyId, cancellationToken));
     }
 

@@ -37,6 +37,7 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
     public DbSet<Payment> Payments => Set<Payment>();
     public DbSet<PaymentAllocation> PaymentAllocations => Set<PaymentAllocation>();
     public DbSet<Quotation> Quotations => Set<Quotation>();
+    public DbSet<Notification> Notifications => Set<Notification>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -181,6 +182,12 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
             entity.HasOne(item=>item.Company).WithMany(item=>item.Quotations).HasForeignKey(item=>item.CompanyId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(item=>item.Customer).WithMany().HasForeignKey(item=>item.CustomerId).OnDelete(DeleteBehavior.Restrict);entity.HasOne(item=>item.CorporateAccount).WithMany().HasForeignKey(item=>item.CorporateAccountId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(item=>item.ConvertedBooking).WithOne().HasForeignKey<Quotation>(item=>item.ConvertedBookingId).OnDelete(DeleteBehavior.Restrict);entity.HasOne(item=>item.Airport).WithMany().HasForeignKey(item=>item.AirportId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<Notification>(entity=>
+        {
+            entity.Property(x=>x.Recipient).HasMaxLength(320);entity.Property(x=>x.Subject).HasMaxLength(300);entity.Property(x=>x.Body).HasMaxLength(4000);entity.Property(x=>x.TemplateName).HasMaxLength(100);entity.Property(x=>x.CorrelationId).HasMaxLength(100);
+            entity.HasIndex(x=>new{x.CompanyId,x.Status,x.CreatedAt});entity.HasIndex(x=>new{x.CompanyId,x.Recipient});entity.HasIndex(x=>new{x.CompanyId,x.CorrelationId});
+            entity.HasOne(x=>x.Company).WithMany(x=>x.Notifications).HasForeignKey(x=>x.CompanyId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Company>(entity =>

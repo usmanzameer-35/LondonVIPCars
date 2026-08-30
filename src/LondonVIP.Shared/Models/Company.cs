@@ -30,4 +30,5 @@ public class Company
     public ICollection<Invoice> Invoices { get; set; } = [];
     public ICollection<Payment> Payments { get; set; } = [];
     public ICollection<Quotation> Quotations { get; set; } = [];
+    public ICollection<Notification> Notifications { get; set; } = [];
 }

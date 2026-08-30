@@ -8,6 +8,7 @@ using LondonVIP.Shared.Security;
 using LondonVIP.Shared.Invoicing;
 using LondonVIP.Shared.Invoices;
 using Microsoft.EntityFrameworkCore;
+using LondonVIP.Shared.Notifications;
 
 namespace LondonVIP.Api;
 
@@ -28,7 +29,7 @@ public static class BookingEndpoints
         return endpoints;
     }
 
-    private static async Task<IResult> GenerateInvoiceAsync(Guid bookingId, IBookingInvoiceService service, IAuditService audit, ICompanyContext company, CancellationToken cancellationToken)
+    private static async Task<IResult> GenerateInvoiceAsync(Guid bookingId, IBookingInvoiceService service, IAuditService audit, ICompanyContext company,INotificationService notifications,CancellationToken cancellationToken)
     {
         var result = await service.GenerateInvoiceAsync(bookingId, cancellationToken);
         if (result.Outcome == InvoiceGenerationOutcome.NotFound)
@@ -46,6 +47,7 @@ public static class BookingEndpoints
         var alreadyExists = result.Outcome == InvoiceGenerationOutcome.AlreadyExists;
         await audit.WriteAsync(alreadyExists ? "BookingInvoiceAlreadyExists" : "BookingInvoiceCreated", "Invoice", "Succeeded", SecurityEventSeverity.Information,
             alreadyExists ? "Invoice already existed for booking." : "Invoice created from booking.", "Invoice", invoice.Id.ToString(), company.CompanyId, cancellationToken);
+        if(!alreadyExists)await notifications.QueueAsync(new(invoice.Customer?.Email??invoice.CustomerId?.ToString()??"finance",invoice.CustomerId.HasValue?NotificationRecipientType.Customer:NotificationRecipientType.CorporateAccount,NotificationType.InvoiceGenerated,"Invoice generated",$"Invoice {invoice.InvoiceNumber} has been generated.","invoice-generated",CorrelationId:invoice.Id.ToString()),cancellationToken);
         return Results.Json(ToInvoiceDetail(invoice), statusCode: alreadyExists ? StatusCodes.Status200OK : StatusCodes.Status201Created);
     }
 
@@ -97,7 +99,7 @@ public static class BookingEndpoints
         return Results.Ok(detail);
     }
 
-    private static async Task<IResult> CreateBookingAsync(BookingCreateDto request, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, CancellationToken cancellationToken)
+    private static async Task<IResult> CreateBookingAsync(BookingCreateDto request, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, INotificationService notifications, CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;
         var errors = BookingValidator.Validate(request, now);
@@ -117,6 +119,7 @@ public static class BookingEndpoints
         await db.SaveChangesAsync(cancellationToken);
         await audit.WriteAsync("BookingCreated", "Booking", "Succeeded", SecurityEventSeverity.Information, "Booking created.", "Booking", booking.Id.ToString(), company.CompanyId, cancellationToken);
         if (booking.CorporateAccountId.HasValue) await audit.WriteAsync("CorporateAccountAssignedToBooking", "CorporateAccounts", "Succeeded", SecurityEventSeverity.Information, "Corporate account linked to booking.", "Booking", booking.Id.ToString(), company.CompanyId, cancellationToken);
+        var recipient=await db.Customers.Where(x=>x.Id==booking.CustomerId&&x.CompanyId==company.CompanyId).Select(x=>x.Email).SingleAsync(cancellationToken);await notifications.QueueAsync(new(recipient,NotificationRecipientType.Customer,NotificationType.BookingCreated,"Booking received",$"Booking {booking.BookingReference} has been created.","booking-created",CorrelationId:booking.Id.ToString()),cancellationToken);
 
         var created = await BookingQuery(db, company.CompanyId).SingleAsync(item => item.Id == booking.Id, cancellationToken);
         return Results.Created($"/api/bookings/{booking.Id}", ToDetail(created));
@@ -142,7 +145,7 @@ public static class BookingEndpoints
         return Results.Ok(ToDetail(updated));
     }
 
-    private static async Task<IResult> UpdateStatusAsync(Guid id, BookingStatusUpdateDto request, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, CancellationToken cancellationToken)
+    private static async Task<IResult> UpdateStatusAsync(Guid id, BookingStatusUpdateDto request, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, INotificationService notifications, CancellationToken cancellationToken)
     {
         if (!Enum.IsDefined(request.Status))
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["status"] = ["Booking status is invalid."] });
@@ -154,6 +157,7 @@ public static class BookingEndpoints
         booking.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
         await audit.WriteAsync("BookingStatusChanged", "Booking", "Succeeded", SecurityEventSeverity.Information, $"Booking status changed to {booking.Status}.", "Booking", id.ToString(), company.CompanyId, cancellationToken);
+        var type=booking.Status switch{BookingStatus.Confirmed=>NotificationType.BookingConfirmed,BookingStatus.Cancelled=>NotificationType.BookingCancelled,BookingStatus.DriverEnRoute=>NotificationType.DriverEnRoute,BookingStatus.DriverArrived=>NotificationType.DriverArrived,BookingStatus.PassengerOnBoard=>NotificationType.PassengerOnboard,BookingStatus.Completed=>NotificationType.BookingCompleted,BookingStatus.NoShow=>NotificationType.NoShow,BookingStatus.UnableToComplete=>NotificationType.UnableToComplete,_=>(NotificationType?)null};if(type.HasValue){var recipient=await db.Customers.Where(x=>x.Id==booking.CustomerId).Select(x=>x.Email).SingleAsync(cancellationToken);await notifications.QueueAsync(new(recipient,NotificationRecipientType.Customer,type.Value,$"Booking {booking.Status}",$"Booking {booking.BookingReference} is now {booking.Status}.",$"booking-{booking.Status.ToString().ToLowerInvariant()}",CorrelationId:id.ToString()),cancellationToken);}
         return Results.Ok(new BookingStatusUpdateDto { Status = booking.Status });
     }
 

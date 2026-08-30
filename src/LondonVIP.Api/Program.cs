@@ -11,6 +11,8 @@ using LondonVIP.Infrastructure.Invoicing;
 using LondonVIP.Infrastructure.Bookings;
 using LondonVIP.Infrastructure.Quotations;
 using LondonVIP.Shared.Quotations;
+using LondonVIP.Infrastructure.Notifications;
+using LondonVIP.Shared.Notifications;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -107,6 +109,10 @@ public static class Program
         builder.Services.AddScoped<IInvoiceNumberGenerator, InvoiceNumberGenerator>();
         builder.Services.AddScoped<BookingTransitionService>();
         builder.Services.AddScoped<IQuotationWorkflowService, QuotationWorkflowService>();
+        builder.Services.AddScoped<INotificationService, NotificationService>();
+        builder.Services.AddScoped<INotificationProvider, DevelopmentEmailProvider>();builder.Services.AddScoped<IEmailProvider, DevelopmentEmailProvider>();
+        builder.Services.AddScoped<INotificationProvider, DevelopmentSmsProvider>();builder.Services.AddScoped<ISmsProvider, DevelopmentSmsProvider>();
+        builder.Services.AddScoped<INotificationProvider, DevelopmentInternalProvider>();
         builder.Services.AddHostedService<IdentityBootstrapper>();
         configureServices?.Invoke(builder.Services);
 
@@ -162,6 +168,7 @@ public static class Program
         app.MapInvoiceEndpoints();
         app.MapPaymentEndpoints();
         app.MapQuotationEndpoints();
+        app.MapNotificationEndpoints();
 
         var summaries = new[]
         {
