@@ -6,6 +6,7 @@ using LondonVIP.Shared.Dispatch;
 using LondonVIP.Shared.Models;
 using LondonVIP.Tests.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.EntityFrameworkCore;
 
 namespace LondonVIP.Tests;
 
@@ -106,6 +107,39 @@ public class DispatchEndpointTests
 
             var jobs = await host.Client.GetFromJsonAsync<List<DispatchBoardItemDto>>("/api/dispatch");
             Assert.DoesNotContain(jobs!, item => item.BookingId == data.Booking.Id);
+        });
+    }
+
+    [Fact]
+    public async Task OperationalActions_MoveJourneyThroughArrivalToCompletionAndAuditEvents()
+    {
+        await WithDispatchDataAsync(async (host, data) =>
+        {
+            using var assigned = await PatchAsync(host.Client, $"/api/dispatch/{data.Booking.Id}/assign", new AssignDriverRequest { DriverId = data.ActiveDriver.Id });
+            assigned.EnsureSuccessStatusCode();
+            foreach (var action in new[] { "accept", "start-navigation", "arrive", "passenger-onboard", "complete" })
+            {
+                using var response = await host.Client.PostAsync($"/api/bookings/{data.Booking.Id}/{action}", null);
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            }
+            await using var scope = host.App.Services.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<LondonVIPDbContext>();
+            Assert.Equal(BookingStatus.Completed, await db.Bookings.Where(x => x.Id == data.Booking.Id).Select(x => x.Status).SingleAsync());
+            Assert.Contains(db.SecurityAuditEvents, x => x.EventType == "DriverArrived" && x.ResourceIdentifier == data.Booking.Id.ToString());
+            Assert.Contains(db.SecurityAuditEvents, x => x.EventType == "BookingCompleted" && x.ResourceIdentifier == data.Booking.Id.ToString());
+        });
+    }
+
+    [Fact]
+    public async Task NoShowAndUnableToComplete_RequireEligibleOperationalStates()
+    {
+        await WithDispatchDataAsync(async (host, data) =>
+        {
+            Assert.Equal(HttpStatusCode.Conflict, (await host.Client.PostAsync($"/api/bookings/{data.Booking.Id}/no-show", null)).StatusCode);
+            var arrived = await AddBookingAsync(host, data, BookingStatus.DriverArrived, data.ActiveDriver.Id);
+            Assert.Equal(HttpStatusCode.OK, (await host.Client.PostAsync($"/api/bookings/{arrived.Id}/no-show", null)).StatusCode);
+            var onboard = await AddBookingAsync(host, data, BookingStatus.PassengerOnBoard, data.ActiveDriver.Id);
+            Assert.Equal(HttpStatusCode.OK, (await host.Client.PostAsync($"/api/bookings/{onboard.Id}/unable-to-complete", null)).StatusCode);
         });
     }
 

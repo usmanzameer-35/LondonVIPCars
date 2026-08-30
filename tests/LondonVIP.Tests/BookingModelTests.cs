@@ -12,7 +12,7 @@ public class BookingModelTests
             Enum.GetNames<UserRole>());
 
         Assert.Equal(
-            ["Quote", "Pending", "Confirmed", "Assigned", "DriverEnRoute", "PassengerOnBoard", "Completed", "Cancelled"],
+            ["Quote", "Pending", "Confirmed", "Assigned", "DriverEnRoute", "PassengerOnBoard", "Completed", "Cancelled", "DriverArrived", "NoShow", "UnableToComplete"],
             Enum.GetNames<BookingStatus>());
 
         Assert.Equal(

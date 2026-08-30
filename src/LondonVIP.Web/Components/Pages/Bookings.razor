@@ -26,6 +26,19 @@
         </section>
     }
 
+    @if (FilteredBookings.Any(b => OperationalActions(b.Status).Count > 0))
+    {
+        <section class="booking-invoice-panel" aria-label="Driver operations">
+            <h2>Driver operations</h2>
+            @foreach (var booking in FilteredBookings.Where(b => OperationalActions(b.Status).Count > 0))
+            {
+                <div class="invoice-row"><span><strong>@booking.BookingReference</strong> — @Display(booking.Status) · @(booking.DriverName ?? "Unassigned")</span>
+                    @foreach (var action in OperationalActions(booking.Status)) { <button type="button" disabled="@(OperationalBookingId == booking.Id)" @onclick="() => PerformOperationalActionAsync(booking.Id, action.Route)">@action.Label</button> }
+                </div>
+            }
+        </section>
+    }
+
     @if (Loading) { <div class="booking-state">Loading bookings...</div> }
     else if (!string.IsNullOrEmpty(LoadError)) { <div class="booking-state error" role="alert">@LoadError</div> }
     else if (FilteredBookings.Count == 0) { <div class="empty-bookings"><span aria-hidden="true">B</span><h2>No bookings found</h2><p>@(BookingItems.Count == 0 ? "There are no bookings in the current company database yet." : "No bookings match the current filters.")</p><button type="button" @onclick="NewBooking">Create first booking</button></div> }
@@ -55,6 +68,7 @@
     private bool ShowEditor { get; set; }
     private bool Loading { get; set; } = true;
     private bool Saving { get; set; }
+    private Guid? OperationalBookingId { get; set; }
     private string Search { get; set; } = string.Empty;
     private string StatusFilter { get; set; } = string.Empty;
     private string? LoadError { get; set; }
@@ -124,6 +138,28 @@
         }
         catch (Exception) { LoadError = "The API could not be reached. No invoice was created."; }
     }
+
+    private async Task PerformOperationalActionAsync(Guid id, string action)
+    {
+        OperationalBookingId = id; LoadError = null;
+        try
+        {
+            using var response = await Client().PostAsync($"api/bookings/{id}/{action}", null);
+            if (response.IsSuccessStatusCode) await LoadAsync();
+            else LoadError = "The operational action is not valid for the booking's current state.";
+        }
+        catch (Exception) { LoadError = "The API could not be reached. No operational change was saved."; }
+        finally { OperationalBookingId = null; }
+    }
+
+    private static List<(string Label, string Route)> OperationalActions(BookingStatus status) => status switch
+    {
+        BookingStatus.Assigned => [("Accept Job", "accept"), ("Start Navigation", "start-navigation"), ("Reject Job", "reject")],
+        BookingStatus.DriverEnRoute => [("Arrived", "arrive")],
+        BookingStatus.DriverArrived => [("Passenger Onboard", "passenger-onboard"), ("No Show", "no-show"), ("Unable To Complete", "unable-to-complete")],
+        BookingStatus.PassengerOnBoard => [("Complete Job", "complete"), ("Unable To Complete", "unable-to-complete")],
+        _ => []
+    };
 
     private void CloseEditor() => ShowEditor = false;
     private HttpClient Client() => HttpClientFactory.CreateClient("LondonVIP.Api");

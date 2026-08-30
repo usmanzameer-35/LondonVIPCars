@@ -5,13 +5,14 @@ using LondonVIP.Shared.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using LondonVIP.Infrastructure.Security;
 using LondonVIP.Shared.Security;
+using LondonVIP.Infrastructure.Bookings;
 
 namespace LondonVIP.Api;
 
 public static class DispatchEndpoints
 {
     private static readonly BookingStatus[] OperationalStatuses =
-        [BookingStatus.Confirmed, BookingStatus.Assigned, BookingStatus.DriverEnRoute, BookingStatus.PassengerOnBoard];
+        [BookingStatus.Confirmed, BookingStatus.Assigned, BookingStatus.DriverEnRoute, BookingStatus.DriverArrived, BookingStatus.PassengerOnBoard];
 
     public static IEndpointRouteBuilder MapDispatchEndpoints(this IEndpointRouteBuilder endpoints)
     {
@@ -27,7 +28,31 @@ public static class DispatchEndpoints
         endpoints.MapPost("/api/bookings/{bookingId:guid}/unassign", UnassignDriverAsync).RequireAuthorization(SecurityPolicies.DispatchOperations).RequireRateLimiting("operations");
         endpoints.MapPost("/api/bookings/{bookingId:guid}/accept", AcceptAsync).RequireAuthorization(SecurityPolicies.DispatchOperations).RequireRateLimiting("operations");
         endpoints.MapPost("/api/bookings/{bookingId:guid}/reject", RejectAsync).RequireAuthorization(SecurityPolicies.DispatchOperations).RequireRateLimiting("operations");
+        endpoints.MapPost("/api/bookings/{bookingId:guid}/start-navigation", StartNavigationAsync).RequireAuthorization(SecurityPolicies.DispatchOperations).RequireRateLimiting("operations");
+        endpoints.MapPost("/api/bookings/{bookingId:guid}/arrive", ArriveAsync).RequireAuthorization(SecurityPolicies.DispatchOperations).RequireRateLimiting("operations");
+        endpoints.MapPost("/api/bookings/{bookingId:guid}/passenger-onboard", PassengerOnboardAsync).RequireAuthorization(SecurityPolicies.DispatchOperations).RequireRateLimiting("operations");
+        endpoints.MapPost("/api/bookings/{bookingId:guid}/complete", CompleteAsync).RequireAuthorization(SecurityPolicies.DispatchOperations).RequireRateLimiting("operations");
+        endpoints.MapPost("/api/bookings/{bookingId:guid}/no-show", NoShowAsync).RequireAuthorization(SecurityPolicies.DispatchOperations).RequireRateLimiting("operations");
+        endpoints.MapPost("/api/bookings/{bookingId:guid}/unable-to-complete", UnableToCompleteAsync).RequireAuthorization(SecurityPolicies.DispatchOperations).RequireRateLimiting("operations");
         return endpoints;
+    }
+
+    private static Task<IResult> StartNavigationAsync(Guid bookingId, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, BookingTransitionService transitions, CancellationToken ct) => ApplyTransitionAsync(bookingId, BookingStatus.DriverEnRoute, "DriverNavigationStarted", db, company, audit, transitions, ct);
+    private static Task<IResult> ArriveAsync(Guid bookingId, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, BookingTransitionService transitions, CancellationToken ct) => ApplyTransitionAsync(bookingId, BookingStatus.DriverArrived, "DriverArrived", db, company, audit, transitions, ct);
+    private static Task<IResult> PassengerOnboardAsync(Guid bookingId, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, BookingTransitionService transitions, CancellationToken ct) => ApplyTransitionAsync(bookingId, BookingStatus.PassengerOnBoard, "PassengerOnBoard", db, company, audit, transitions, ct);
+    private static Task<IResult> CompleteAsync(Guid bookingId, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, BookingTransitionService transitions, CancellationToken ct) => ApplyTransitionAsync(bookingId, BookingStatus.Completed, "BookingCompleted", db, company, audit, transitions, ct);
+    private static Task<IResult> NoShowAsync(Guid bookingId, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, BookingTransitionService transitions, CancellationToken ct) => ApplyTransitionAsync(bookingId, BookingStatus.NoShow, "BookingMarkedNoShow", db, company, audit, transitions, ct);
+    private static Task<IResult> UnableToCompleteAsync(Guid bookingId, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, BookingTransitionService transitions, CancellationToken ct) => ApplyTransitionAsync(bookingId, BookingStatus.UnableToComplete, "BookingUnableToComplete", db, company, audit, transitions, ct);
+
+    private static async Task<IResult> ApplyTransitionAsync(Guid bookingId, BookingStatus next, string eventType, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, BookingTransitionService transitions, CancellationToken ct)
+    {
+        var booking = await db.Bookings.SingleOrDefaultAsync(x => x.Id == bookingId && x.CompanyId == company.CompanyId, ct);
+        if (booking is null) { await AuditCrossTenantAsync(db, audit, bookingId, company.CompanyId, ct); return Results.NotFound(); }
+        if (!transitions.CanTransition(booking.Status, next, booking.DriverId.HasValue)) return Conflict($"Status cannot move from {booking.Status} to {next} in dispatch.");
+        booking.Status = next; booking.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(ct);
+        await audit.WriteAsync(eventType, "Dispatch", "Succeeded", SecurityEventSeverity.Information, $"Booking moved to {next}.", "Booking", bookingId.ToString(), company.CompanyId, ct);
+        return OperationalStatuses.Contains(next) ? Results.Ok(await LoadItemAsync(db, bookingId, company.CompanyId, ct)) : Results.Ok(new DispatchStatusUpdateDto { Status = next });
     }
 
     private static async Task<IResult> AcceptAsync(Guid bookingId, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, CancellationToken cancellationToken)
@@ -83,11 +108,12 @@ public static class DispatchEndpoints
         LondonVIPDbContext db,
         ICompanyContext company,
         IAuditService audit,
+        BookingTransitionService transitions,
         CancellationToken cancellationToken)
     {
         var booking = await db.Bookings.SingleOrDefaultAsync(item => item.Id == bookingId && item.CompanyId == company.CompanyId, cancellationToken);
         if (booking is null) { await AuditCrossTenantAsync(db, audit, bookingId, company.CompanyId, cancellationToken); return Results.NotFound(); }
-        if (booking.Status is not (BookingStatus.Confirmed or BookingStatus.Assigned))
+        if (!transitions.CanAssign(booking.Status))
             return Conflict("Only confirmed or assigned bookings can be assigned or reassigned.");
         if (request.DriverId == Guid.Empty)
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["driverId"] = ["Driver is required."] });
@@ -138,12 +164,13 @@ public static class DispatchEndpoints
         LondonVIPDbContext db,
         ICompanyContext company,
         IAuditService audit,
+        BookingTransitionService transitions,
         CancellationToken cancellationToken)
     {
         if (!Enum.IsDefined(request.Status)) return Results.ValidationProblem(new Dictionary<string, string[]> { ["status"] = ["Dispatch status is invalid."] });
         var booking = await db.Bookings.SingleOrDefaultAsync(item => item.Id == bookingId && item.CompanyId == company.CompanyId, cancellationToken);
         if (booking is null) { await AuditCrossTenantAsync(db, audit, bookingId, company.CompanyId, cancellationToken); return Results.NotFound(); }
-        if (!IsAllowedTransition(booking.Status, request.Status, booking.DriverId is not null))
+        if (!transitions.CanTransition(booking.Status, request.Status, booking.DriverId is not null))
             return Conflict($"Status cannot move from {booking.Status} to {request.Status} in dispatch.");
 
         booking.Status = request.Status;
@@ -156,18 +183,6 @@ public static class DispatchEndpoints
 
         return Results.Ok(new DispatchStatusUpdateDto { Status = booking.Status });
     }
-
-    private static bool IsAllowedTransition(BookingStatus current, BookingStatus next, bool hasDriver) =>
-        (current, next) switch
-        {
-            (BookingStatus.Confirmed, BookingStatus.Cancelled) => true,
-            (BookingStatus.Assigned, BookingStatus.DriverEnRoute) => hasDriver,
-            (BookingStatus.Assigned, BookingStatus.Cancelled) => true,
-            (BookingStatus.DriverEnRoute, BookingStatus.PassengerOnBoard) => hasDriver,
-            (BookingStatus.DriverEnRoute, BookingStatus.Cancelled) => true,
-            (BookingStatus.PassengerOnBoard, BookingStatus.Completed) => hasDriver,
-            _ => false
-        };
 
     private static async Task<List<DispatchBoardItemDto>> LoadBoardAsync(
         LondonVIPDbContext db,
