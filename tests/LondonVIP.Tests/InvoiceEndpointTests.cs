@@ -49,7 +49,7 @@ public class InvoiceEndpointTests
             Assert.Equal(75m, invoice.Subtotal);
             Assert.Equal(15m, invoice.TaxAmount);
             Assert.Equal(90m, invoice.TotalAmount);
-            Assert.Equal(1, invoice.Lines.Count);
+            Assert.Single(invoice.Lines);
         });
     }
 
