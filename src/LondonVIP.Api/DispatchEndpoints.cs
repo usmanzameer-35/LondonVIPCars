@@ -22,7 +22,32 @@ public static class DispatchEndpoints
         group.MapPatch("/{bookingId:guid}/assign", AssignDriverAsync);
         group.MapPatch("/{bookingId:guid}/unassign", UnassignDriverAsync);
         group.MapPatch("/{bookingId:guid}/status", UpdateStatusAsync);
+        // Command-style aliases used by operational clients.
+        endpoints.MapPost("/api/bookings/{bookingId:guid}/assign", AssignDriverAsync).RequireAuthorization(SecurityPolicies.DispatchOperations).RequireRateLimiting("operations");
+        endpoints.MapPost("/api/bookings/{bookingId:guid}/unassign", UnassignDriverAsync).RequireAuthorization(SecurityPolicies.DispatchOperations).RequireRateLimiting("operations");
+        endpoints.MapPost("/api/bookings/{bookingId:guid}/accept", AcceptAsync).RequireAuthorization(SecurityPolicies.DispatchOperations).RequireRateLimiting("operations");
+        endpoints.MapPost("/api/bookings/{bookingId:guid}/reject", RejectAsync).RequireAuthorization(SecurityPolicies.DispatchOperations).RequireRateLimiting("operations");
         return endpoints;
+    }
+
+    private static async Task<IResult> AcceptAsync(Guid bookingId, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, CancellationToken cancellationToken)
+    {
+        var booking = await db.Bookings.SingleOrDefaultAsync(x => x.Id == bookingId && x.CompanyId == company.CompanyId, cancellationToken);
+        if (booking is null) return Results.NotFound();
+        if (booking.Status != BookingStatus.Assigned || booking.DriverId is null) return Conflict("Only assigned bookings can be accepted.");
+        await audit.WriteAsync("DriverAccepted", "Dispatch", "Succeeded", SecurityEventSeverity.Information, "Driver accepted booking.", "Booking", bookingId.ToString(), company.CompanyId, cancellationToken);
+        return Results.Ok(await LoadItemAsync(db, bookingId, company.CompanyId, cancellationToken));
+    }
+
+    private static async Task<IResult> RejectAsync(Guid bookingId, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, CancellationToken cancellationToken)
+    {
+        var booking = await db.Bookings.SingleOrDefaultAsync(x => x.Id == bookingId && x.CompanyId == company.CompanyId, cancellationToken);
+        if (booking is null) return Results.NotFound();
+        if (booking.Status != BookingStatus.Assigned || booking.DriverId is null) return Conflict("Only assigned bookings can be rejected.");
+        booking.DriverId = null; booking.Status = BookingStatus.Confirmed; booking.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(cancellationToken);
+        await audit.WriteAsync("DriverRejected", "Dispatch", "Succeeded", SecurityEventSeverity.Information, "Driver rejected booking.", "Booking", bookingId.ToString(), company.CompanyId, cancellationToken);
+        return Results.Ok(await LoadItemAsync(db, bookingId, company.CompanyId, cancellationToken));
     }
 
     private static async Task<IResult> GetBoardAsync(LondonVIPDbContext db, ICompanyContext company, CancellationToken cancellationToken) =>
@@ -62,7 +87,7 @@ public static class DispatchEndpoints
     {
         var booking = await db.Bookings.SingleOrDefaultAsync(item => item.Id == bookingId && item.CompanyId == company.CompanyId, cancellationToken);
         if (booking is null) { await AuditCrossTenantAsync(db, audit, bookingId, company.CompanyId, cancellationToken); return Results.NotFound(); }
-        if (booking.Status is not (BookingStatus.Confirmed or BookingStatus.Assigned))
+        if (booking.Status is not (BookingStatus.Pending or BookingStatus.Confirmed or BookingStatus.Assigned))
             return Conflict("Only confirmed or assigned bookings can be assigned or reassigned.");
         if (request.DriverId == Guid.Empty)
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["driverId"] = ["Driver is required."] });
@@ -88,7 +113,7 @@ public static class DispatchEndpoints
 
     private static async Task<IResult> UnassignDriverAsync(
         Guid bookingId,
-        UnassignDriverRequest request,
+        UnassignDriverRequest? request,
         LondonVIPDbContext db,
         ICompanyContext company,
         IAuditService audit,
