@@ -1,0 +1,64 @@
+@page "/customer-portal"
+@attribute [Authorize]
+@layout CustomerPortalLayout
+@rendermode InteractiveServer
+@using LondonVIP.Shared.CustomerPortal
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Customer Portal | London VIP Cars</PageTitle>
+
+<div class="portal-page">
+    <header class="welcome"><div><span>Customer workspace</span><h1>Your journeys, in one place</h1><p>Review live booking status and your invoice and payment records.</p></div>
+        <label><span>Customer account</span><select value="@SelectedCustomerId" @onchange="SelectCustomerAsync"><option value="">Select a customer</option>@foreach (var customer in Customers){<option value="@customer.Id">@customer.FullName</option>}</select></label>
+    </header>
+
+    @if (Loading) { <div class="portal-state">Loading your travel account...</div> }
+    else if (!string.IsNullOrEmpty(Error)) { <div class="portal-state error" role="alert">@Error</div> }
+    else if (Dashboard is null) { <div class="portal-state"><h2>Select a customer account</h2><p>This internal foundation uses the current tenant's customer records until customer login identity mapping is introduced.</p></div> }
+    else
+    {
+        <section class="identity"><div><span>Welcome back</span><h2>@Dashboard.CustomerName</h2><p>@Dashboard.Email · @Dashboard.Phone</p></div><div class="summary"><article><strong>@Dashboard.Bookings.Count</strong><span>Journeys</span></article><article><strong>@Dashboard.Invoices.Count</strong><span>Invoices</span></article><article><strong>@Dashboard.Payments.Count</strong><span>Payments</span></article></div></section>
+        <nav class="tabs" aria-label="Portal sections"><button class="@(Tab == "bookings" ? "active" : null)" @onclick="ShowBookings">Bookings</button><button class="@(Tab == "invoices" ? "active" : null)" @onclick="ShowInvoices">Invoices</button><button class="@(Tab == "payments" ? "active" : null)" @onclick="ShowPayments">Payments</button></nav>
+
+        @if (Tab == "bookings")
+        {
+            <section class="content"><div class="section-title"><div><span>Travel</span><h2>Bookings</h2></div><p>Status updates reflect the operations system.</p></div>
+                @if (Dashboard.Bookings.Count == 0) { <div class="empty">No bookings are recorded for this customer.</div> }
+                else { <div class="journeys">@foreach (var booking in Dashboard.Bookings){<article><div class="journey-head"><div><strong>@booking.BookingReference</strong><span>@booking.PickupDateTime.LocalDateTime.ToString("ddd, dd MMM yyyy · HH:mm")</span></div><span class="status @StatusClass(booking.Status)">@Display(booking.Status)</span></div><div class="route"><span>@booking.PickupAddress</span><i></i><span>@booking.Destination</span></div><div class="meta"><span>@Display(booking.VehicleType)</span><span>@booking.TotalFare.ToString("C", UkCulture)</span><span>@(booking.InvoiceNumber is null ? "Not invoiced" : $"Invoice {booking.InvoiceNumber}")</span><button @onclick="() => OpenBookingAsync(booking.Id)">View details</button></div></article>}</div> }
+            </section>
+        }
+        else if (Tab == "invoices")
+        {
+            <section class="content"><div class="section-title"><div><span>Finance</span><h2>Invoices</h2></div><p>Read-only account records.</p></div><div class="records">@if (Dashboard.Invoices.Count == 0){<div class="empty">No invoices are recorded for this customer.</div>}@foreach(var invoice in Dashboard.Invoices){<article><div><strong>@invoice.InvoiceNumber</strong><span>Issued @invoice.InvoiceDate.LocalDateTime.ToString("dd MMM yyyy") · Due @invoice.DueDate.LocalDateTime.ToString("dd MMM yyyy")</span></div><span class="status">@Display(invoice.Status)</span><div class="money"><strong>@invoice.TotalAmount.ToString("C", UkCulture)</strong><span>@invoice.BalanceDue.ToString("C", UkCulture) due</span></div></article>}</div></section>
+        }
+        else
+        {
+            <section class="content"><div class="section-title"><div><span>Finance</span><h2>Payments</h2></div><p>Payments recorded by the finance team.</p></div><div class="records">@if (Dashboard.Payments.Count == 0){<div class="empty">No payments are recorded for this customer.</div>}@foreach(var payment in Dashboard.Payments){<article><div><strong>@payment.PaymentReference</strong><span>@payment.PaymentDate.LocalDateTime.ToString("dd MMM yyyy") · @Display(payment.PaymentMethod)</span></div><div class="money"><strong>@payment.Amount.ToString("C", UkCulture)</strong><span>@payment.AllocatedAmount.ToString("C", UkCulture) allocated</span></div></article>}</div></section>
+        }
+    }
+</div>
+
+@if (BookingDetail is not null)
+{
+    <div class="detail-backdrop"><section class="detail" role="dialog" aria-modal="true" aria-labelledby="booking-detail-title"><header><div><span>Journey details</span><h2 id="booking-detail-title">@BookingDetail.Booking.BookingReference</h2></div><button @onclick="() => BookingDetail = null" aria-label="Close booking details">×</button></header><div class="detail-status"><span class="status @StatusClass(BookingDetail.Booking.Status)">@Display(BookingDetail.Booking.Status)</span><strong>@BookingDetail.Booking.PickupDateTime.LocalDateTime.ToString("dddd, dd MMMM yyyy · HH:mm")</strong></div><dl><div><dt>Pickup</dt><dd>@BookingDetail.Booking.PickupAddress</dd></div><div><dt>Destination</dt><dd>@BookingDetail.Booking.Destination</dd></div><div><dt>Vehicle</dt><dd>@Display(BookingDetail.Booking.VehicleType)</dd></div><div><dt>Passengers / luggage</dt><dd>@BookingDetail.PassengerCount / @BookingDetail.LuggageCount</dd></div><div><dt>Driver</dt><dd>@(BookingDetail.Booking.DriverName ?? "To be assigned")</dd></div><div><dt>Payment</dt><dd>@Display(BookingDetail.Booking.PaymentStatus)</dd></div>@if(BookingDetail.IsAirportPickup){<div><dt>Airport service</dt><dd>@(BookingDetail.IsMeetAndGreet ? "Meet & greet" : "Airport pickup") @(BookingDetail.Booking.FlightNumber is null ? "" : $"· {BookingDetail.Booking.FlightNumber}")</dd></div>}</dl><footer><button @onclick="() => BookingDetail = null">Close</button></footer></section></div>
+}
+
+@code {
+    private static readonly System.Globalization.CultureInfo UkCulture = System.Globalization.CultureInfo.GetCultureInfo("en-GB");
+    private List<CustomerPortalCustomerDto> Customers { get; set; } = [];
+    private CustomerPortalDashboardDto? Dashboard { get; set; }
+    private CustomerPortalBookingDetailDto? BookingDetail { get; set; }
+    private Guid? SelectedCustomerId { get; set; }
+    private string Tab { get; set; } = "bookings";
+    private bool Loading { get; set; } = true;
+    private string? Error { get; set; }
+    protected override async Task OnInitializedAsync(){try{Customers=await Client().GetFromJsonAsync<List<CustomerPortalCustomerDto>>("api/customer-portal/customers")??[];}catch{Error="The customer portal could not be loaded. Make sure the API is running and your account has access.";}finally{Loading=false;}}
+    private async Task SelectCustomerAsync(ChangeEventArgs args){if(!Guid.TryParse(args.Value?.ToString(),out var id)){SelectedCustomerId=null;Dashboard=null;return;}SelectedCustomerId=id;Loading=true;Error=null;try{Dashboard=await Client().GetFromJsonAsync<CustomerPortalDashboardDto>($"api/customer-portal/{id}");}catch{Error="This customer account could not be loaded.";}finally{Loading=false;}}
+    private async Task OpenBookingAsync(Guid bookingId){if(SelectedCustomerId is not {} customerId)return;try{BookingDetail=await Client().GetFromJsonAsync<CustomerPortalBookingDetailDto>($"api/customer-portal/{customerId}/bookings/{bookingId}");}catch{Error="The booking details could not be loaded.";}}
+    private void ShowBookings()=>Tab="bookings";
+    private void ShowInvoices()=>Tab="invoices";
+    private void ShowPayments()=>Tab="payments";
+    private HttpClient Client()=>HttpClientFactory.CreateClient("LondonVIP.Api");
+    private static string Display(string value)=>System.Text.RegularExpressions.Regex.Replace(value,"([a-z])([A-Z])","$1 $2");
+    private static string StatusClass(string value)=>value.ToLowerInvariant();
+}

@@ -39,6 +39,19 @@ public class ErpShellTests
         });
     }
 
+    [Fact]
+    public async Task CustomerPortal_RendersSeparateResponsiveWorkspace()
+    {
+        await WithWebAppAsync(async client =>
+        {
+            var html = await client.GetStringAsync("/customer-portal");
+            Assert.Contains("Your journeys, in one place", html);
+            Assert.Contains("Customer account", html);
+            Assert.Contains("London VIP Cars customer portal", html);
+            Assert.DoesNotContain("Operations ERP", html);
+        });
+    }
+
     [Theory]
     [InlineData("/erp/quotes", "Quotes", "Development preview")]
     [InlineData("/erp/bookings", "Bookings", "New booking")]

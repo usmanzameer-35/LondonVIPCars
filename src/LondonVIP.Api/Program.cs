@@ -151,6 +151,7 @@ public static class Program
         app.MapBookingEndpoints();
         app.MapDispatchEndpoints();
         app.MapCustomerEndpoints();
+        app.MapCustomerPortalEndpoints();
         app.MapPricingAdministrationEndpoints();
         app.MapDriverEndpoints();
         app.MapVehicleEndpoints();
