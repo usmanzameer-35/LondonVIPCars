@@ -87,7 +87,7 @@ public static class DispatchEndpoints
     {
         var booking = await db.Bookings.SingleOrDefaultAsync(item => item.Id == bookingId && item.CompanyId == company.CompanyId, cancellationToken);
         if (booking is null) { await AuditCrossTenantAsync(db, audit, bookingId, company.CompanyId, cancellationToken); return Results.NotFound(); }
-        if (booking.Status is not (BookingStatus.Pending or BookingStatus.Confirmed or BookingStatus.Assigned))
+        if (booking.Status is not (BookingStatus.Confirmed or BookingStatus.Assigned))
             return Conflict("Only confirmed or assigned bookings can be assigned or reassigned.");
         if (request.DriverId == Guid.Empty)
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["driverId"] = ["Driver is required."] });
