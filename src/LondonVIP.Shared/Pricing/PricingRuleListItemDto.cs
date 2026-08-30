@@ -15,4 +15,9 @@ public sealed class PricingRuleListItemDto
     public decimal WaitingChargePerHour { get; set; }
     public bool IsActive { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
+    public PricingRuleType RuleType { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int Priority { get; set; }
+    public DateTimeOffset? EffectiveFrom { get; set; }
+    public DateTimeOffset? EffectiveTo { get; set; }
 }

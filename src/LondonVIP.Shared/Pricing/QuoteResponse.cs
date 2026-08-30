@@ -21,4 +21,9 @@ public class QuoteResponse
     public decimal ExtrasTotal { get; set; }
 
     public decimal TotalFare { get; set; }
+    public decimal DiscountTotal { get; set; }
+    public decimal MinimumFare { get; set; }
+    public List<PricingBreakdownItemDto> Breakdown { get; set; } = [];
 }
+
+public sealed record PricingBreakdownItemDto(string Name, decimal Amount, Guid RuleId);

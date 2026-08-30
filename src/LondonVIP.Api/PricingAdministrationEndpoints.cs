@@ -20,6 +20,8 @@ public static class PricingAdministrationEndpoints
         group.MapPost("", CreateRuleAsync).RequireAuthorization(SecurityPolicies.PricingWrite);
         group.MapPut("/{id:guid}", UpdateRuleAsync).RequireAuthorization(SecurityPolicies.PricingWrite);
         group.MapPatch("/{id:guid}/status", SetStatusAsync).RequireAuthorization(SecurityPolicies.PricingWrite);
+        group.MapPost("/{id:guid}/clone", CloneRuleAsync).RequireAuthorization(SecurityPolicies.PricingWrite);
+        group.MapPost("/preview", PreviewAsync).RequireAuthorization(SecurityPolicies.PricingRead);
         return endpoints;
     }
 
@@ -77,6 +79,8 @@ public static class PricingAdministrationEndpoints
         if (errors.Count > 0) return Results.ValidationProblem(errors);
         var rule = await db.PricingRules.SingleOrDefaultAsync(item => item.Id == id && item.CompanyId == company.CompanyId, cancellationToken);
         if (rule is null) { await AuditCrossTenantAsync(db, audit, id, company.CompanyId, cancellationToken); return Results.NotFound(); }
+        if (request.IsActive && !rule.IsActive && rule.RuleType == PricingRuleType.LegacyFare && await HasLegacyDuplicateAsync(db, company.CompanyId, rule.AirportId, rule.VehicleType, id, cancellationToken))
+            return Results.ValidationProblem(new Dictionary<string, string[]> { ["isActive"] = ["Another active legacy rule already exists for this airport and vehicle type."] });
         Apply(request, rule); rule.UpdatedAt = DateTimeOffset.UtcNow; await db.SaveChangesAsync(cancellationToken);
         await audit.WriteAsync("PricingRuleUpdated", "Pricing", "Succeeded", SecurityEventSeverity.Information, "Pricing rule updated.", "PricingRule", id.ToString(), company.CompanyId, cancellationToken);
         return Results.Ok(await DetailQuery(db, company.CompanyId).SingleAsync(item => item.Id == id, cancellationToken));
@@ -86,8 +90,6 @@ public static class PricingAdministrationEndpoints
     {
         var rule = await db.PricingRules.SingleOrDefaultAsync(item => item.Id == id && item.CompanyId == company.CompanyId, cancellationToken);
         if (rule is null) { await AuditCrossTenantAsync(db, audit, id, company.CompanyId, cancellationToken); return Results.NotFound(); }
-        if (request.IsActive && !rule.IsActive && await HasActiveDuplicateAsync(db, company.CompanyId, rule.AirportId, rule.VehicleType, id, cancellationToken))
-            return Results.ValidationProblem(new Dictionary<string, string[]> { ["isActive"] = ["Another active rule already exists for this airport and vehicle type."] });
         if (rule.IsActive == request.IsActive) return Results.Ok(await DetailQuery(db, company.CompanyId).SingleAsync(item => item.Id == id, cancellationToken));
         rule.IsActive = request.IsActive; rule.UpdatedAt = DateTimeOffset.UtcNow; await db.SaveChangesAsync(cancellationToken);
         await audit.WriteAsync(request.IsActive ? "PricingRuleActivated" : "PricingRuleDeactivated", "Pricing", "Succeeded", SecurityEventSeverity.Information,
@@ -98,17 +100,22 @@ public static class PricingAdministrationEndpoints
     private static async Task AddReferenceErrorsAsync(Dictionary<string, string[]> errors, PricingRuleCreateDto request, Guid? excludingId, LondonVIPDbContext db, Guid companyId, CancellationToken cancellationToken)
     {
         if (request.AirportId is { } airportId && !await db.Airports.AnyAsync(item => item.Id == airportId && item.IsActive, cancellationToken)) errors["airportId"] = ["Airport was not found or is inactive."];
-        if (request.IsActive && await HasActiveDuplicateAsync(db, companyId, request.AirportId, request.VehicleType, excludingId, cancellationToken)) errors["rule"] = ["An active rule already exists for this airport and vehicle type."];
+        if (request.IsActive && request.RuleType == PricingRuleType.LegacyFare && await HasLegacyDuplicateAsync(db, companyId, request.AirportId, request.VehicleType, excludingId, cancellationToken)) errors["rule"] = ["An active rule already exists for this airport and vehicle type."];
     }
 
-    private static Task<bool> HasActiveDuplicateAsync(LondonVIPDbContext db, Guid companyId, Guid? airportId, VehicleType vehicleType, Guid? excludingId, CancellationToken cancellationToken) =>
-        db.PricingRules.AnyAsync(item => item.CompanyId == companyId && item.Id != excludingId && item.AirportId == airportId && item.VehicleType == vehicleType && item.IsActive, cancellationToken);
+    private static Task<bool> HasLegacyDuplicateAsync(LondonVIPDbContext db, Guid companyId, Guid? airportId, VehicleType vehicleType, Guid? excludingId, CancellationToken token) =>
+        db.PricingRules.AnyAsync(item => item.CompanyId == companyId && item.Id != excludingId && item.RuleType == PricingRuleType.LegacyFare && item.AirportId == airportId && item.VehicleType == vehicleType && item.IsActive, token);
 
     private static void Apply(PricingRuleCreateDto request, PricingRule rule)
     {
         rule.AirportId = request.AirportId; rule.VehicleType = request.VehicleType; rule.BasePrice = request.BasePrice;
         rule.AirportPickupSupplement = request.AirportPickupSupplement; rule.FreeWaitingMinutes = request.FreeWaitingMinutes;
         rule.WaitingChargePerHour = request.WaitingChargePerHour; rule.IsActive = request.IsActive;
+        rule.RuleType = request.RuleType; rule.Name = request.Name?.Trim() ?? string.Empty; rule.Priority = request.Priority;
+        rule.EffectiveFrom = request.EffectiveFrom; rule.EffectiveTo = request.EffectiveTo;
+        rule.PickupPostcode = Trim(request.PickupPostcode); rule.DestinationPostcode = Trim(request.DestinationPostcode);
+        rule.PickupZone = Trim(request.PickupZone); rule.DestinationZone = Trim(request.DestinationZone); rule.PromotionCode = Trim(request.PromotionCode);
+        rule.Amount = request.Amount; rule.Percentage = request.Percentage; rule.UnitRate = request.UnitRate; rule.IncludedUnits = request.IncludedUnits;
     }
 
     private static IQueryable<PricingRuleListItemDto> RuleQuery(LondonVIPDbContext db, Guid companyId) =>
@@ -117,7 +124,8 @@ public static class PricingAdministrationEndpoints
             Id = item.Id, AirportId = item.AirportId, AirportCode = item.AirportId == null ? null : db.Airports.Where(airport => airport.Id == item.AirportId).Select(airport => airport.Code).FirstOrDefault(),
             AirportName = item.AirportId == null ? null : db.Airports.Where(airport => airport.Id == item.AirportId).Select(airport => airport.Name).FirstOrDefault(),
             VehicleType = item.VehicleType, BasePrice = item.BasePrice, AirportPickupSupplement = item.AirportPickupSupplement,
-            FreeWaitingMinutes = item.FreeWaitingMinutes, WaitingChargePerHour = item.WaitingChargePerHour, IsActive = item.IsActive, UpdatedAt = item.UpdatedAt
+            FreeWaitingMinutes = item.FreeWaitingMinutes, WaitingChargePerHour = item.WaitingChargePerHour, IsActive = item.IsActive, UpdatedAt = item.UpdatedAt,
+            RuleType = item.RuleType, Name = item.Name, Priority = item.Priority, EffectiveFrom = item.EffectiveFrom, EffectiveTo = item.EffectiveTo
         });
 
     private static IQueryable<PricingRuleDetailDto> DetailQuery(LondonVIPDbContext db, Guid companyId) =>
@@ -127,8 +135,35 @@ public static class PricingAdministrationEndpoints
             AirportName = item.AirportId == null ? null : db.Airports.Where(airport => airport.Id == item.AirportId).Select(airport => airport.Name).FirstOrDefault(),
             VehicleType = item.VehicleType, BasePrice = item.BasePrice, AirportPickupSupplement = item.AirportPickupSupplement,
             FreeWaitingMinutes = item.FreeWaitingMinutes, WaitingChargePerHour = item.WaitingChargePerHour, IsActive = item.IsActive,
-            CreatedAt = item.CreatedAt, UpdatedAt = item.UpdatedAt
+            CreatedAt = item.CreatedAt, UpdatedAt = item.UpdatedAt, RuleType = item.RuleType, Name = item.Name, Priority = item.Priority,
+            EffectiveFrom = item.EffectiveFrom, EffectiveTo = item.EffectiveTo, PickupPostcode = item.PickupPostcode, DestinationPostcode = item.DestinationPostcode,
+            PickupZone = item.PickupZone, DestinationZone = item.DestinationZone, PromotionCode = item.PromotionCode,
+            Amount = item.Amount, Percentage = item.Percentage, UnitRate = item.UnitRate, IncludedUnits = item.IncludedUnits
         });
+
+    private static async Task<IResult> CloneRuleAsync(Guid id, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, CancellationToken token)
+    {
+        var source = await db.PricingRules.AsNoTracking().SingleOrDefaultAsync(item => item.Id == id && item.CompanyId == company.CompanyId, token);
+        if (source is null) { await AuditCrossTenantAsync(db, audit, id, company.CompanyId, token); return Results.NotFound(); }
+        var clone = new PricingRule { Id = Guid.NewGuid(), CompanyId = company.CompanyId, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow, IsActive = false };
+        Apply(ToCreate(source), clone); clone.IsActive = false; clone.Name = string.IsNullOrWhiteSpace(source.Name) ? "Copy" : source.Name + " (copy)";
+        db.PricingRules.Add(clone); await db.SaveChangesAsync(token);
+        await audit.WriteAsync("PricingRuleCloned", "Pricing", "Succeeded", SecurityEventSeverity.Information, "Pricing rule cloned as inactive.", "PricingRule", clone.Id.ToString(), company.CompanyId, token);
+        return Results.Created($"/api/pricing/{clone.Id}", await DetailQuery(db, company.CompanyId).SingleAsync(item => item.Id == clone.Id, token));
+    }
+
+    private static async Task<IResult> PreviewAsync(QuoteRequest request, IPricingService pricing, CancellationToken token) => Results.Ok(await pricing.CalculateQuoteAsync(request, token));
+
+    private static PricingRuleCreateDto ToCreate(PricingRule rule) => new()
+    {
+        AirportId=rule.AirportId,VehicleType=rule.VehicleType,BasePrice=rule.BasePrice,AirportPickupSupplement=rule.AirportPickupSupplement,
+        FreeWaitingMinutes=rule.FreeWaitingMinutes,WaitingChargePerHour=rule.WaitingChargePerHour,IsActive=rule.IsActive,RuleType=rule.RuleType,
+        Name=rule.Name,Priority=rule.Priority,EffectiveFrom=rule.EffectiveFrom,EffectiveTo=rule.EffectiveTo,PickupPostcode=rule.PickupPostcode,
+        DestinationPostcode=rule.DestinationPostcode,PickupZone=rule.PickupZone,DestinationZone=rule.DestinationZone,PromotionCode=rule.PromotionCode,
+        Amount=rule.Amount,Percentage=rule.Percentage,UnitRate=rule.UnitRate,IncludedUnits=rule.IncludedUnits
+    };
+
+    private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static async Task AuditCrossTenantAsync(LondonVIPDbContext db, IAuditService audit, Guid id, Guid companyId, CancellationToken cancellationToken)
     {

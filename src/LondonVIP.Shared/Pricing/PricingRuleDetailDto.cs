@@ -16,4 +16,18 @@ public sealed class PricingRuleDetailDto
     public bool IsActive { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset UpdatedAt { get; set; }
+    public PricingRuleType RuleType { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public int Priority { get; set; }
+    public DateTimeOffset? EffectiveFrom { get; set; }
+    public DateTimeOffset? EffectiveTo { get; set; }
+    public string? PickupPostcode { get; set; }
+    public string? DestinationPostcode { get; set; }
+    public string? PickupZone { get; set; }
+    public string? DestinationZone { get; set; }
+    public string? PromotionCode { get; set; }
+    public decimal Amount { get; set; }
+    public decimal Percentage { get; set; }
+    public decimal UnitRate { get; set; }
+    public decimal IncludedUnits { get; set; }
 }

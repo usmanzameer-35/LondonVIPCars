@@ -151,7 +151,18 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
             entity.Property(rule => rule.BasePrice).HasPrecision(18, 2);
             entity.Property(rule => rule.AirportPickupSupplement).HasPrecision(18, 2);
             entity.Property(rule => rule.WaitingChargePerHour).HasPrecision(18, 2);
-            entity.HasIndex(rule => new { rule.CompanyId, rule.AirportId, rule.VehicleType, rule.IsActive });
+            entity.Property(rule => rule.Amount).HasPrecision(18, 2);
+            entity.Property(rule => rule.Percentage).HasPrecision(7, 4);
+            entity.Property(rule => rule.UnitRate).HasPrecision(18, 4);
+            entity.Property(rule => rule.IncludedUnits).HasPrecision(18, 4);
+            entity.Property(rule => rule.Name).HasMaxLength(200);
+            entity.Property(rule => rule.PickupPostcode).HasMaxLength(20);
+            entity.Property(rule => rule.DestinationPostcode).HasMaxLength(20);
+            entity.Property(rule => rule.PickupZone).HasMaxLength(100);
+            entity.Property(rule => rule.DestinationZone).HasMaxLength(100);
+            entity.Property(rule => rule.PromotionCode).HasMaxLength(100);
+            entity.HasIndex(rule => new { rule.CompanyId, rule.RuleType, rule.VehicleType, rule.IsActive, rule.Priority });
+            entity.HasIndex(rule => new { rule.CompanyId, rule.EffectiveFrom, rule.EffectiveTo });
             entity.HasOne(rule => rule.Company).WithMany(company => company.PricingRules)
                 .HasForeignKey(rule => rule.CompanyId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne<Airport>().WithMany().HasForeignKey(rule => rule.AirportId)

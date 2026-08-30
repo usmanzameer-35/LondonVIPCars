@@ -21,4 +21,21 @@ public class QuoteRequest
     public int WaitingMinutes { get; set; }
 
     public bool IsMeetAndGreet { get; set; }
+
+    public DateTimeOffset? JourneyDateTime { get; set; }
+    public string? PickupPostcode { get; set; }
+    public string? DestinationPostcode { get; set; }
+    public string? PickupZone { get; set; }
+    public string? DestinationZone { get; set; }
+    public decimal HireHours { get; set; }
+    public decimal DistanceMiles { get; set; }
+    public decimal ParkingCharges { get; set; }
+    public int ChildSeatCount { get; set; }
+    public int ExtraStopCount { get; set; }
+    public decimal TollCharges { get; set; }
+    public decimal ManualAdjustment { get; set; }
+    public bool IsCorporateCustomer { get; set; }
+    public string? PromotionCode { get; set; }
+    public bool IsHoliday { get; set; }
+    public bool IsCancellation { get; set; }
 }
