@@ -1,0 +1,32 @@
+@page "/erp/driver-dashboard"
+@attribute [Authorize]
+@layout AdminLayout
+@rendermode InteractiveServer
+@using LondonVIP.Shared.Drivers
+@using LondonVIP.Shared.Models
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Driver Dashboard | London VIP Cars ERP</PageTitle>
+<div class="driver-workspace">
+ <header><div><span>Fleet &amp; Drivers</span><h1>Driver Dashboard</h1><p>Current Job, daily workload and valid operational actions.</p></div><label>Driver<select @bind="SelectedDriverId" @bind:after="LoadDashboard"><option value="">Select driver</option>@foreach(var d in Drivers.Where(x=>x.IsActive)){<option value="@d.Id">@d.FirstName @d.LastName</option>}</select></label></header>
+ @if(Loading){<div class="state">Loading driver workspace...</div>}
+ else if(Error is not null){<div class="state error" role="alert">@Error</div>}
+ else if(Dashboard is null){<div class="state">Select an active driver to open their workspace.</div>}
+ else
+ {
+  <section class="summary"><div><strong>@Dashboard.TodaysJobs.Count</strong><span>Today's Jobs</span></div><div><strong>@Dashboard.UpcomingJobs.Count</strong><span>Upcoming Jobs</span></div><div><strong>@Dashboard.CompletedToday</strong><span>Completed</span></div><div><strong>@Dashboard.CancelledToday</strong><span>Cancelled</span></div><div><strong>@Dashboard.RejectedToday</strong><span>Rejected</span></div></section>
+  <section class="identity"><div><small>Driver</small><strong>@Dashboard.DriverName</strong><span class="pill">@Display(Dashboard.AvailabilityStatus)</span></div><div><small>Assigned vehicle</small><strong>@(Dashboard.VehicleDisplay??"No vehicle")</strong><span>@Dashboard.RegistrationNumber</span></div><div><small>Next pickup</small><strong>@(Dashboard.NextPickupTime?.LocalDateTime.ToString("dd MMM, HH:mm")??"No upcoming pickup")</strong></div></section>
+  <section class="current"><h2>Current Job</h2>@if(Dashboard.CurrentJob is null){<p>No active booking is assigned.</p>}else{var job=Dashboard.CurrentJob;<article><header><div><strong>@job.BookingReference</strong><span>@Display(job.Status)</span></div><time>@job.PickupDateTime.LocalDateTime.ToString("dd MMM yyyy, HH:mm")</time></header><h3>@job.CustomerName</h3><p>@job.PickupAddress <b>&rarr;</b> @job.Destination</p>@if(job.AirportCode is not null){<small>@job.AirportCode @job.FlightNumber</small>}<div class="actions">@foreach(var action in Actions(job.Status)){<button disabled="@Busy" @onclick="()=>Perform(job.BookingId,action.Route)">@action.Label</button>}</div></article>}</section>
+  <section class="jobs"><h2>Upcoming Jobs</h2>@if(Dashboard.UpcomingJobs.Count==0){<p>No upcoming jobs.</p>}else{@foreach(var job in Dashboard.UpcomingJobs){<article><time>@job.PickupDateTime.LocalDateTime.ToString("dd MMM, HH:mm")</time><div><strong>@job.BookingReference · @job.CustomerName</strong><span>@job.PickupAddress → @job.Destination</span></div><span class="pill">@Display(job.Status)</span></article>}}</section>
+  <section class="jobs"><h2>Today's Jobs</h2>@if(Dashboard.TodaysJobs.Count==0){<p>No jobs scheduled today.</p>}else{@foreach(var job in Dashboard.TodaysJobs){<article><time>@job.PickupDateTime.LocalDateTime.ToString("HH:mm")</time><div><strong>@job.BookingReference</strong><span>@job.PickupAddress → @job.Destination</span></div><span class="pill">@Display(job.Status)</span></article>}}</section>
+ }
+</div>
+
+@code{
+ List<DriverListItemDto> Drivers=[];DriverDashboardDto? Dashboard;Guid? SelectedDriverId;bool Loading=true,Busy;string? Error;
+ protected override async Task OnInitializedAsync(){try{Drivers=await Client().GetFromJsonAsync<List<DriverListItemDto>>("api/drivers")??[];}catch{Error="Drivers could not be loaded.";}finally{Loading=false;}}
+ async Task LoadDashboard(){Dashboard=null;Error=null;if(SelectedDriverId is null)return;Loading=true;try{Dashboard=await Client().GetFromJsonAsync<DriverDashboardDto>($"api/drivers/{SelectedDriverId}/dashboard");}catch{Error="The driver workspace could not be loaded.";}finally{Loading=false;}}
+ async Task Perform(Guid bookingId,string action){Busy=true;Error=null;try{using var r=await Client().PostAsync($"api/bookings/{bookingId}/{action}",null);if(r.IsSuccessStatusCode)await LoadDashboard();else Error="That action is not valid for the current job state.";}catch{Error="The operational action could not reach the API.";}finally{Busy=false;}}
+ static List<(string Label,string Route)> Actions(BookingStatus status)=>status switch{BookingStatus.Assigned=>[("Start Navigation","start-navigation")],BookingStatus.DriverEnRoute=>[("Arrived","arrive")],BookingStatus.DriverArrived=>[("Passenger Onboard","passenger-onboard"),("Unable To Complete","unable-to-complete")],BookingStatus.PassengerOnBoard=>[("Complete Job","complete"),("Unable To Complete","unable-to-complete")],_=>[]};
+ HttpClient Client()=>HttpClientFactory.CreateClient("LondonVIP.Api");static string Display<T>(T x)=>System.Text.RegularExpressions.Regex.Replace(x?.ToString()??"","([a-z])([A-Z])","$1 $2");
+}

@@ -17,6 +17,7 @@ public static class ErpModuleCatalog
         M("CRM", "Communications", "/erp/communications", "Prepare operational and customer message templates.", "Message templates", "Delivery history", "Service notices"),
 
         M("Fleet & Drivers", "Drivers", "/erp/drivers", "Manage the active driver network and availability.", "Driver directory", "Availability", "Performance overview"),
+        M("Fleet & Drivers", "Driver Dashboard", "/erp/driver-dashboard", "Operate a driver's current and upcoming workload.", "Current job", "Quick actions", "Daily workload"),
         M("Fleet & Drivers", "Fleet", "/erp/fleet", "Maintain vehicles, capacity and operating status.", "Vehicle register", "Capacity", "Maintenance status"),
         M("Fleet & Drivers", "Driver Accounts", "/erp/driver-accounts", "Prepare statements and account-level driver records.", "Account summary", "Commission statements", "Weekly account status"),
 

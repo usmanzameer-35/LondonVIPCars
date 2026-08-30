@@ -69,9 +69,10 @@ public static class DispatchEndpoints
         var booking = await db.Bookings.SingleOrDefaultAsync(x => x.Id == bookingId && x.CompanyId == company.CompanyId, cancellationToken);
         if (booking is null) return Results.NotFound();
         if (booking.Status != BookingStatus.Assigned || booking.DriverId is null) return Conflict("Only assigned bookings can be rejected.");
+        var rejectedByDriverId = booking.DriverId.Value;
         booking.DriverId = null; booking.Status = BookingStatus.Confirmed; booking.UpdatedAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync(cancellationToken);
-        await audit.WriteAsync("DriverRejected", "Dispatch", "Succeeded", SecurityEventSeverity.Information, "Driver rejected booking.", "Booking", bookingId.ToString(), company.CompanyId, cancellationToken);
+        await audit.WriteAsync("DriverRejected", "Dispatch", "Succeeded", SecurityEventSeverity.Information, $"Driver {rejectedByDriverId} rejected booking.", "Booking", bookingId.ToString(), company.CompanyId, cancellationToken);
         return Results.Ok(await LoadItemAsync(db, bookingId, company.CompanyId, cancellationToken));
     }
 

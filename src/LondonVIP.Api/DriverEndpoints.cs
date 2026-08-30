@@ -15,12 +15,37 @@ public static class DriverEndpoints
         var group = endpoints.MapGroup("/api/drivers").RequireRateLimiting("operations");
         group.MapGet("", GetDriversAsync).RequireAuthorization(SecurityPolicies.DriverFleetRead);
         group.MapGet("/{id:guid}", GetDriverAsync).RequireAuthorization(SecurityPolicies.DriverFleetRead);
+        group.MapGet("/{id:guid}/dashboard", GetDashboardAsync).RequireAuthorization(SecurityPolicies.DriverFleetRead);
         group.MapPost("", CreateDriverAsync).RequireAuthorization(SecurityPolicies.DriverFleetWrite);
         group.MapPut("/{id:guid}", UpdateDriverAsync).RequireAuthorization(SecurityPolicies.DriverFleetWrite);
         group.MapPatch("/{id:guid}/status", SetStatusAsync).RequireAuthorization(SecurityPolicies.DriverFleetWrite);
         group.MapPatch("/{id:guid}/availability", SetAvailabilityAsync).RequireAuthorization(SecurityPolicies.DriverOperations);
         group.MapPatch("/{id:guid}/vehicle", SetVehicleAsync).RequireAuthorization(SecurityPolicies.DriverOperations);
         return endpoints;
+    }
+
+    private static async Task<IResult> GetDashboardAsync(Guid id, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, CancellationToken token)
+    {
+        var driver = await db.Drivers.AsNoTracking().Include(x => x.Vehicle).SingleOrDefaultAsync(x => x.Id == id && x.CompanyId == company.CompanyId, token);
+        if (driver is null) { await AuditCrossTenantAsync(db, audit, id, company.CompanyId, token); return Results.NotFound(); }
+        var now = DateTimeOffset.UtcNow; var dayStart = new DateTimeOffset(now.UtcDateTime.Date, TimeSpan.Zero); var dayEnd = dayStart.AddDays(1);
+        var jobs = await db.Bookings.AsNoTracking().Where(x => x.CompanyId == company.CompanyId && x.DriverId == id)
+            .Select(x => new DriverDashboardJobDto { BookingId=x.Id,BookingReference=x.BookingReference,PickupDateTime=x.PickupDateTime,CustomerName=x.Customer.FirstName+" "+x.Customer.LastName,PickupAddress=x.PickupAddress,Destination=x.Destination,AirportCode=x.Airport==null?null:x.Airport.Code,FlightNumber=x.FlightNumber,Status=x.Status }).ToListAsync(token);
+        jobs = jobs.OrderBy(x => x.PickupDateTime).ToList();
+        var active = jobs.Where(x => x.Status is BookingStatus.Assigned or BookingStatus.DriverEnRoute or BookingStatus.DriverArrived or BookingStatus.PassengerOnBoard).ToList();
+        var rejectionEvents = await db.SecurityAuditEvents.AsNoTracking().Where(x=>x.CompanyId==company.CompanyId&&x.EventType=="DriverRejected").Select(x=>new{x.Timestamp,x.Description}).ToListAsync(token);
+        var result = new DriverDashboardDto
+        {
+            DriverId=driver.Id,DriverName=$"{driver.FirstName} {driver.LastName}".Trim(),AvailabilityStatus=driver.AvailabilityStatus,
+            VehicleDisplay=driver.Vehicle is null?null:$"{driver.Vehicle.Make} {driver.Vehicle.Model}",RegistrationNumber=driver.Vehicle?.RegistrationNumber,
+            CurrentJob=active.FirstOrDefault(x => x.Status is BookingStatus.DriverEnRoute or BookingStatus.DriverArrived or BookingStatus.PassengerOnBoard) ?? active.FirstOrDefault(),
+            UpcomingJobs=active.Where(x=>x.PickupDateTime>=now).ToList(),TodaysJobs=jobs.Where(x=>x.PickupDateTime>=dayStart&&x.PickupDateTime<dayEnd).ToList(),
+            NextPickupTime=active.Where(x=>x.PickupDateTime>=now).Select(x=>(DateTimeOffset?)x.PickupDateTime).FirstOrDefault(),
+            CompletedToday=jobs.Count(x=>x.Status==BookingStatus.Completed&&x.PickupDateTime>=dayStart&&x.PickupDateTime<dayEnd),
+            CancelledToday=jobs.Count(x=>x.Status==BookingStatus.Cancelled&&x.PickupDateTime>=dayStart&&x.PickupDateTime<dayEnd),
+            RejectedToday=rejectionEvents.Count(x=>x.Timestamp>=dayStart&&x.Timestamp<dayEnd&&x.Description.Contains(id.ToString(),StringComparison.OrdinalIgnoreCase))
+        };
+        return Results.Ok(result);
     }
 
     private static async Task<IResult> GetDriversAsync(string? search, bool? active, DriverAvailabilityStatus? availability, bool? assigned,
