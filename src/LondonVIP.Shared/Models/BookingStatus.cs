@@ -9,8 +9,5 @@ public enum BookingStatus
     DriverEnRoute,
     PassengerOnBoard,
     Completed,
-    Cancelled,
-    DriverArrived,
-    NoShow,
-    UnableToComplete
+    Cancelled
 }
