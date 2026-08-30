@@ -30,11 +30,11 @@ public class ErpShellTests
             var html = await client.GetStringAsync("/erp");
 
             Assert.Contains("Operations dashboard", html);
-            Assert.Contains("Bookings Today", html);
-            Assert.Contains("Next 2 Hours", html);
-            Assert.Contains("Flight Delays", html);
-            Assert.Contains("Expiring Documents", html);
-            Assert.Contains("Demonstration data", html);
+            Assert.Contains("Live operations", html);
+            Assert.Contains("New Booking", html);
+            Assert.Contains("Dispatch Board", html);
+            Assert.Contains("Notifications", html);
+            Assert.DoesNotContain("Demonstration data", html);
             Assert.Contains("href=\"/erp/company-setup\"", html);
             Assert.Contains("Website / CMS", html);
         });

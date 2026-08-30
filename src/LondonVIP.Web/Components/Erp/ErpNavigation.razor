@@ -7,7 +7,7 @@
             <h2>@group.Key</h2>
             @foreach (var module in group)
             {
-                <NavLink href="@module.Route" Match="@(module.Route == "/erp" ? NavLinkMatch.All : NavLinkMatch.Prefix)">
+                <NavLink href="@module.Route" Match="@(module.Route == "/erp/dashboard" ? NavLinkMatch.All : NavLinkMatch.Prefix)">
                     <span class="nav-icon" aria-hidden="true">@Initials(module.Title)</span><span class="nav-text">@module.Title</span>
                 </NavLink>
             }

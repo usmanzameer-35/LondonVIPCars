@@ -1,75 +1,35 @@
 @page "/erp"
+@page "/erp/dashboard"
 @attribute [Authorize]
 @layout AdminLayout
+@rendermode InteractiveServer
+@using LondonVIP.Shared.Dashboard
+@inject IHttpClientFactory HttpClientFactory
 
 <PageTitle>Operations Dashboard | London VIP Cars ERP</PageTitle>
-
 <div class="dashboard-page">
-    <header class="dashboard-heading">
-        <div><span class="dashboard-eyebrow">Friday, 28 August</span><h1>Operations dashboard</h1><p>A clear view of today's London VIP Cars operation.</p></div>
-        <span class="demo-label"><i></i> Demonstration data</span>
-    </header>
-
-    <div class="dashboard-notice"><strong>Dashboard preview</strong> All values on this page are placeholder data for layout planning and are not connected to live operations.</div>
-
-    <section class="summary-grid" aria-label="Daily summary">
-        @foreach (var item in Summary)
-        {
-            <article><div class="summary-top"><span>@item.Label</span><i class="@item.Tone">@item.Icon</i></div><strong>@item.Value</strong><small>@item.Note</small></article>
-        }
-    </section>
-
-    <div class="dashboard-grid">
-        <section class="dashboard-card next-jobs">
-            <header><div><span class="card-kicker">Dispatch outlook</span><h2>Next 2 Hours</h2></div><a href="/erp/dispatch">Open dispatch &rarr;</a></header>
-            <div class="job-list">
-                @foreach (var job in UpcomingJobs)
-                {
-                    <article><time>@job.Time</time><span class="route-dot"></span><div><strong>@job.Route</strong><small>@job.Vehicle &bull; Demo booking</small></div><span class="job-status @job.Tone">@job.Status</span></article>
-                }
-            </div>
-        </section>
-
-        <DashboardPanel Title="Flight Delays" Kicker="Airport operations" Link="/erp/airport-operations" Empty="No live flight feed connected">
-            <div class="mini-alert amber"><span>!</span><div><strong>Flight integration pending</strong><small>Connect a provider to monitor arrival changes.</small></div></div>
-        </DashboardPanel>
-
-        <DashboardPanel Title="Traffic Alerts" Kicker="Journey conditions" Link="/erp/journey-intelligence" Empty="No live traffic feed connected">
-            <div class="mini-alert neutral"><span>&#8594;</span><div><strong>Route monitoring placeholder</strong><small>Live journey risk will appear here later.</small></div></div>
-        </DashboardPanel>
-
-        <DashboardPanel Title="New Leads" Kicker="CRM" Link="/erp/leads" Empty="Demo lead activity">
-            <ul class="compact-list"><li><span>Website quote</span><strong>3 demo</strong></li><li><span>Corporate enquiry</span><strong>1 demo</strong></li><li><span>Follow-up due</span><strong>2 demo</strong></li></ul>
-        </DashboardPanel>
-
-        <DashboardPanel Title="Outstanding Payments" Kicker="Finance" Link="/erp/payments" Empty="Payment processing not connected">
-            <div class="metric-block"><strong>&pound;0.00</strong><span>Live balance unavailable</span></div>
-        </DashboardPanel>
-
-        <DashboardPanel Title="Driver Alerts" Kicker="Fleet &amp; drivers" Link="/erp/drivers" Empty="Demo driver alerts">
-            <ul class="compact-list"><li><span>Availability check</span><strong>2 demo</strong></li><li><span>Account review</span><strong>1 demo</strong></li></ul>
-        </DashboardPanel>
-
-        <DashboardPanel Title="Expiring Documents" Kicker="Compliance" Link="/erp/documents" Empty="Demo compliance reminders">
-            <ul class="compact-list"><li><span>Within 30 days</span><strong>2 demo</strong></li><li><span>Within 60 days</span><strong>4 demo</strong></li></ul>
-        </DashboardPanel>
-    </div>
+ <header class="dashboard-heading"><div><span class="dashboard-eyebrow">Live operations</span><h1>Operations dashboard</h1><p>Bookings, journeys, finance and capacity for the current company.</p></div><button @onclick="LoadAsync" disabled="@Loading">Refresh</button></header>
+ <nav class="quick-actions" aria-label="Dashboard quick actions">@foreach(var action in QuickActions){<a href="@action.Url">@action.Label</a>}</nav>
+ @if(Loading){<div class="dashboard-state">Loading operational data...</div>}
+ else if(Data is null){<div class="dashboard-state error" role="alert">@Error</div>}
+ else{
+  <section class="summary-grid" aria-label="Operational summary">@foreach(var item in Cards(Data.Summary)){<article><span>@item.Label</span><strong>@item.Value</strong><small>@item.Note</small></article>}</section>
+  <section class="charts">
+   <Chart Title="Bookings per Day" Points="Data.Bookings.BookingsPerDay"/><Chart Title="Revenue by Day" Points="Data.Revenue.RevenueByDay" Currency="true"/><Chart Title="Booking Status Distribution" Points="Data.Bookings.StatusDistribution"/><Chart Title="Airport Breakdown" Points="Data.Bookings.AirportBreakdown"/><Chart Title="Driver Utilization" Points="Data.Drivers.Utilization"/>
+   <article class="chart-card conversion"><span>Quote Conversion Rate</span><strong>@Data.Bookings.QuoteConversionRate.ToString("0.#")%</strong><div><i style="width:@($"{Math.Min(100,Data.Bookings.QuoteConversionRate):0.#}%")"></i></div><small>Converted quotations</small></article>
+  </section>
+  <section class="operations">
+   <BookingWidget Title="Upcoming pickups" Items="Data.Operations.UpcomingPickups" Empty="No pickups in the next two hours."/><BookingWidget Title="Late pickups" Items="Data.Operations.LatePickups" Empty="No late pickups."/><BookingWidget Title="Drivers en route" Items="Data.Operations.DriversEnRoute" Empty="No drivers currently en route."/><BookingWidget Title="Drivers waiting" Items="Data.Operations.DriversWaiting" Empty="No drivers currently waiting."/><BookingWidget Title="Passenger onboard" Items="Data.Operations.PassengerOnboard" Empty="No active passenger journeys."/>
+   <article class="widget"><header><h2>Outstanding quotations</h2><a href="/erp/quotes">View all</a></header>@if(Data.Operations.OutstandingQuotations.Count==0){<p class="empty">No outstanding quotations.</p>}@foreach(var quote in Data.Operations.OutstandingQuotations){<div class="row"><div><strong>@quote.Reference · @quote.Customer</strong><span>Expires @quote.ExpiresAt.LocalDateTime.ToString("dd MMM, HH:mm")</span></div><b>@quote.TotalFare.ToString("C",Uk)</b></div>}</article>
+   <article class="widget"><header><h2>Failed notifications</h2><a href="/erp/communications">Open queue</a></header>@if(Data.Operations.FailedNotifications.Count==0){<p class="empty">No failed notifications.</p>}@foreach(var item in Data.Operations.FailedNotifications){<div class="row"><div><strong>@item.Subject</strong><span>@item.Recipient · @item.RetryCount retries</span></div></div>}</article>
+   <article class="widget"><header><h2>Unpaid invoices</h2><a href="/erp/invoicing">View all</a></header>@if(Data.Operations.UnpaidInvoices.Count==0){<p class="empty">No unpaid invoices.</p>}@foreach(var item in Data.Operations.UnpaidInvoices){<div class="row"><div><strong>@item.Number</strong><span>Due @item.DueDate.LocalDateTime.ToString("dd MMM")</span></div><b>@item.BalanceDue.ToString("C",Uk)</b></div>}</article>
+   <article class="widget"><header><h2>Recent payments</h2><a href="/erp/payments">View all</a></header>@if(Data.Operations.RecentPayments.Count==0){<p class="empty">No recent payments.</p>}@foreach(var item in Data.Operations.RecentPayments){<div class="row"><div><strong>@item.Reference</strong><span>@item.PaymentDate.LocalDateTime.ToString("dd MMM, HH:mm")</span></div><b>@item.Amount.ToString("C",Uk)</b></div>}</article>
+  </section>
+ }
 </div>
-
-@code {
-    private static readonly (string Label, string Value, string Note, string Icon, string Tone)[] Summary =
-    [
-        ("Bookings Today", "12", "Demo total", "B", "green"),
-        ("Revenue Today", "£1,840", "Demo value", "£", "gold"),
-        ("Unassigned Jobs", "3", "Demo attention", "!", "red"),
-        ("Drivers Available", "8", "Demo availability", "D", "green"),
-        ("Airport Pickups", "7", "Demo total", "A", "blue"),
-        ("New Leads", "6", "Demo enquiries", "L", "gold")
-    ];
-    private static readonly (string Time, string Route, string Vehicle, string Status, string Tone)[] UpcomingJobs =
-    [
-        ("09:30", "Heathrow T5 → Mayfair", "Saloon", "Assigned", "good"),
-        ("10:05", "Chelsea → Gatwick N", "Estate", "Unassigned", "attention"),
-        ("10:40", "Stansted → Hammersmith", "MPV", "Confirmed", "neutral")
-    ];
+@code{
+ private static readonly System.Globalization.CultureInfo Uk=System.Globalization.CultureInfo.GetCultureInfo("en-GB");private DashboardDto? Data;private bool Loading=true;private string Error="The dashboard could not be loaded.";
+ private static readonly (string Label,string Url)[] QuickActions=[("New Booking","/erp/bookings?new=true"),("New Quote","/erp/quotes?new=true"),("Dispatch Board","/erp/dispatch"),("Pricing","/erp/pricing"),("Drivers","/erp/drivers"),("Customers","/erp/customers"),("Notifications","/erp/communications"),("Invoices","/erp/invoicing")];
+ protected override Task OnInitializedAsync()=>LoadAsync();private async Task LoadAsync(){Loading=true;try{Data=await HttpClientFactory.CreateClient("LondonVIP.Api").GetFromJsonAsync<DashboardDto>("api/dashboard");Error="The dashboard returned no data.";}catch{Data=null;Error="The dashboard could not reach the operations API.";}finally{Loading=false;}}
+ private static IEnumerable<(string Label,string Value,string Note)> Cards(DashboardSummaryDto x)=>[("Today's Bookings",x.TodaysBookings.ToString(),"Scheduled today"),("Upcoming Bookings",x.UpcomingBookings.ToString(),"Open future work"),("Active Journeys",x.ActiveJourneys.ToString(),"Operational now"),("Completed Today",x.CompletedToday.ToString(),"Finished journeys"),("Cancelled Today",x.CancelledToday.ToString(),"Cancelled journeys"),("No Shows",x.NoShows.ToString(),"Today's exceptions"),("Unable To Complete",x.UnableToComplete.ToString(),"Today's exceptions"),("Outstanding Invoices",x.OutstandingInvoices.ToString(),"Balance remaining"),("Today's Revenue",x.TodaysRevenue.ToString("C",Uk),"Invoices issued"),("This Month Revenue",x.ThisMonthRevenue.ToString("C",Uk),"Invoices issued"),("Payments Today",x.PaymentsReceivedToday.ToString("C",Uk),"Received today"),("Quotes Awaiting",x.QuotesAwaitingResponse.ToString(),"Active quotations"),("Drivers Available",x.DriversAvailable.ToString(),"Ready for work"),("Vehicles Available",x.VehiclesAvailable.ToString(),"Active and free")];
 }

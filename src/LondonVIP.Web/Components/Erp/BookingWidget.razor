@@ -1,0 +1,3 @@
+@using LondonVIP.Shared.Dashboard
+<article class="widget"><header><h2>@Title</h2><a href="/erp/dispatch">Dispatch</a></header>@if(Items.Count==0){<p class="empty">@Empty</p>}@foreach(var item in Items){<div class="row"><time>@item.PickupDateTime.LocalDateTime.ToString("HH:mm")</time><div><strong>@item.Reference · @item.Customer</strong><span>@item.Pickup → @item.Destination</span></div><b>@item.Status</b></div>}</article>
+@code{[Parameter,EditorRequired]public string Title{get;set;}="";[Parameter,EditorRequired]public IReadOnlyList<DashboardBookingItemDto> Items{get;set;}=[];[Parameter,EditorRequired]public string Empty{get;set;}="";}

@@ -13,6 +13,8 @@ using LondonVIP.Infrastructure.Quotations;
 using LondonVIP.Shared.Quotations;
 using LondonVIP.Infrastructure.Notifications;
 using LondonVIP.Shared.Notifications;
+using LondonVIP.Infrastructure.Dashboard;
+using LondonVIP.Shared.Dashboard;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -113,6 +115,8 @@ public static class Program
         builder.Services.AddScoped<INotificationProvider, DevelopmentEmailProvider>();builder.Services.AddScoped<IEmailProvider, DevelopmentEmailProvider>();
         builder.Services.AddScoped<INotificationProvider, DevelopmentSmsProvider>();builder.Services.AddScoped<ISmsProvider, DevelopmentSmsProvider>();
         builder.Services.AddScoped<INotificationProvider, DevelopmentInternalProvider>();
+        builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddScoped<IDashboardService, DashboardService>();
         builder.Services.AddHostedService<IdentityBootstrapper>();
         configureServices?.Invoke(builder.Services);
 
@@ -169,6 +173,7 @@ public static class Program
         app.MapPaymentEndpoints();
         app.MapQuotationEndpoints();
         app.MapNotificationEndpoints();
+        app.MapDashboardEndpoints();
 
         var summaries = new[]
         {

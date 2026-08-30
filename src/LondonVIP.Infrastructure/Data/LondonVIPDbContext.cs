@@ -5,6 +5,7 @@ using LondonVIP.Infrastructure.Tenancy;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace LondonVIP.Infrastructure.Data;
 
@@ -393,5 +394,18 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
                 Name = "Stansted",
                 IsActive = true
             });
+
+        // SQLite cannot natively compare or order DateTimeOffset values. The test provider
+        // stores them as UTC ticks so relational dashboard queries retain SQL semantics.
+        if (Database.ProviderName?.Contains("Sqlite", StringComparison.Ordinal) == true)
+        {
+            var dateTimeOffsetConverter = new ValueConverter<DateTimeOffset, long>(value => value.UtcTicks, value => new DateTimeOffset(value, TimeSpan.Zero));
+            var nullableDateTimeOffsetConverter = new ValueConverter<DateTimeOffset?, long?>(value => value.HasValue ? value.Value.UtcTicks : null, value => value.HasValue ? new DateTimeOffset(value.Value, TimeSpan.Zero) : null);
+            foreach (var property in modelBuilder.Model.GetEntityTypes().SelectMany(entity => entity.GetProperties()))
+            {
+                if (property.ClrType == typeof(DateTimeOffset)) property.SetValueConverter(dateTimeOffsetConverter);
+                else if (property.ClrType == typeof(DateTimeOffset?)) property.SetValueConverter(nullableDateTimeOffsetConverter);
+            }
+        }
     }
 }

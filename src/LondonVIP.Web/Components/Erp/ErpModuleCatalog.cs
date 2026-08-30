@@ -4,7 +4,7 @@ public static class ErpModuleCatalog
 {
     public static readonly IReadOnlyList<ErpModuleDefinition> All =
     [
-        M("Operations", "Dashboard", "/erp", "A single operational view of today's service.", "Live KPIs", "Operational alerts", "Daily performance"),
+        M("Operations", "Dashboard", "/erp/dashboard", "A single operational view of today's service.", "Live KPIs", "Operational alerts", "Daily performance"),
         M("Operations", "Quotes", "/erp/quotes", "Review and manage customer journey quotations.", "Quote pipeline", "Price review", "Quote conversion"),
         M("Operations", "Bookings", "/erp/bookings", "Coordinate confirmed and upcoming passenger journeys.", "Booking register", "Journey details", "Status workflow"),
         M("Operations", "Dispatch", "/erp/dispatch", "Assign work and monitor the daily operations board.", "Driver assignment", "Dispatch board", "Job status"),
