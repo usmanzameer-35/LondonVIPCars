@@ -58,6 +58,44 @@ public class ErpShellTests
         });
     }
 
+    [Fact]
+    public async Task PublicHomepage_RendersCinematicAccessibleSeoFoundation()
+    {
+        await WithWebAppAsync(async client =>
+        {
+            var html = await client.GetStringAsync("/");
+            Assert.Contains("London, elevated", html);
+            Assert.Contains("hero-desktop.mp4", html);
+            Assert.Contains("hero-mobile.mp4", html);
+            Assert.Contains("hero.webm", html);
+            Assert.Contains("hero-poster.jpg", html);
+            Assert.Contains("prefers-reduced-motion", await client.GetStringAsync("/app.css"));
+            Assert.Contains("rel=\"canonical\"", html);
+            Assert.Contains("property=\"og:title\"", html);
+            Assert.Contains("href=\"/fleet\"", html);
+        });
+    }
+
+    [Fact]
+    public async Task PublicFleet_RendersCategoriesDetailsAndSearchFiles()
+    {
+        await WithWebAppAsync(async client =>
+        {
+            var list = await client.GetStringAsync("/fleet");
+            Assert.Contains("Executive Saloon", list);
+            Assert.Contains("Luxury MPV", list);
+            Assert.Contains("Accessible Vehicle", list);
+            Assert.Contains("Compare", list);
+            Assert.Contains("loading=\"lazy\"", list);
+            var detail = await client.GetStringAsync("/fleet/executive-saloon");
+            Assert.Contains("Vehicle gallery", detail);
+            Assert.Contains("Suitcases", detail);
+            Assert.Contains("Phone charging", list);
+            Assert.Contains("Sitemap:", await client.GetStringAsync("/robots.txt"));
+            Assert.Contains("/fleet", await client.GetStringAsync("/sitemap.xml"));
+        });
+    }
+
     [Theory]
     [InlineData("/erp/quotes", "Quotes", "Create quote")]
     [InlineData("/erp/bookings", "Bookings", "New booking")]

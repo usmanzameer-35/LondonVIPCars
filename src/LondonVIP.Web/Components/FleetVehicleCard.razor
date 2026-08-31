@@ -1,0 +1,5 @@
+<article class="premium-vehicle-card" tabindex="0">
+    <div class="vehicle-media"><img src="@Vehicle.HeroImage" alt="@Vehicle.Name — @Vehicle.Category" loading="lazy" decoding="async" onerror="this.hidden=true"/><span class="media-placeholder" aria-hidden="true">@Vehicle.ShortName</span><span class="rating">@Vehicle.ExecutiveRating executive</span></div>
+    <div class="vehicle-details"><span class="eyebrow">@Vehicle.Category</span><h2>@Vehicle.Name</h2><p>@Vehicle.Description</p><div class="vehicle-capacity"><span>@Vehicle.Passengers passengers</span><span>@Vehicle.Suitcases suitcases</span><span>@Vehicle.CarryOns carry-ons</span></div><ul>@foreach(var feature in Vehicle.Features.Take(4)){<li>@feature</li>}</ul><div class="vehicle-actions"><a href="/fleet/@Vehicle.Slug">Quick view</a><button type="button" @onclick="Compare">Compare</button><a class="book" href="/#quote">Book now</a></div></div>
+</article>
+@code{[Parameter,EditorRequired]public FleetVehicleViewModel Vehicle{get;set;}=null!;[Parameter]public EventCallback<FleetVehicleViewModel> OnCompare{get;set;}private Task Compare()=>OnCompare.InvokeAsync(Vehicle);}

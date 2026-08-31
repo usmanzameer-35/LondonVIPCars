@@ -1,19 +1,9 @@
 ﻿@page "/"
 
 <PageTitle>London VIP Cars | Airport Transfers &amp; Private Hire</PageTitle>
+<HeadContent><meta name="description" content="Premium London airport transfers and private hire with professional drivers, considered vehicles and clear journey pricing."/><link rel="canonical" href="https://www.londonvipcars.co.uk/"/><meta property="og:title" content="London VIP Cars | Airport Transfers &amp; Private Hire"/><meta property="og:description" content="London, elevated. Pre-booked airport transfers and private journeys."/><meta property="og:type" content="website"/><meta property="og:url" content="https://www.londonvipcars.co.uk/"/><meta property="og:image" content="/media/hero/hero-thumbnail.jpg"/><meta name="twitter:card" content="summary_large_image"/><meta name="twitter:title" content="London VIP Cars"/><meta name="twitter:description" content="Premium London airport transfers and private hire."/></HeadContent>
 
-<section class="hero">
-    <div class="container-lvip hero-grid">
-        <div class="hero-copy">
-            <span class="eyebrow eyebrow-light">London airport transfers</span>
-            <h1>Arrive calm.<br /><em>Travel considered.</em></h1>
-            <p>Reliable, pre-booked journeys with professional drivers, thoughtfully selected vehicles and clear, upfront service.</p>
-            <div class="hero-actions"><a class="button" href="#quote">Plan your journey</a><a class="text-link" href="#how-it-works">How it works <span aria-hidden="true">&rarr;</span></a></div>
-            <div class="hero-proof" aria-label="Service highlights"><span><b>&#10003;</b> Flight monitoring ready</span><span><b>&#10003;</b> Professional drivers</span><span><b>&#10003;</b> Clear pricing</span></div>
-        </div>
-        <div class="hero-visual" aria-hidden="true"><div class="route-line"></div><div class="city-card"><small>Serving</small><strong>London</strong><span>and all major airports</span></div><div class="arrival-card"><span class="arrival-icon">&#9992;</span><div><small>Next stop</small><strong>Your destination</strong></div></div></div>
-    </div>
-</section>
+<HeroVideo />
 
 <div id="quote" class="container-lvip quote-overlap"><QuoteWidget /></div>
 
@@ -31,7 +21,7 @@
 
 <section id="fleet" class="section section-soft">
     <div class="container-lvip">
-        <div class="section-heading centered"><span class="eyebrow">A vehicle for every journey</span><h2>Travel comfortably, whatever the plan.</h2><p>Choose the space that suits your passengers and luggage.</p></div>
+        <div class="section-heading centered"><span class="eyebrow">A vehicle for every journey</span><h2>Travel comfortably, whatever the plan.</h2><p>Choose the space that suits your passengers and luggage.</p><a class="text-link fleet-link" href="/fleet">Explore the complete fleet <span aria-hidden="true">→</span></a></div>
         <div class="vehicle-grid">
             @foreach (var vehicle in Vehicles)
             {

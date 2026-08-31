@@ -1,0 +1,31 @@
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+<section class="cinematic-hero" aria-labelledby="hero-title">
+    <div class="hero-media" aria-hidden="true">
+        <video @ref="Video" class="hero-video" autoplay muted loop playsinline preload="metadata" poster="@Poster">
+            <source media="(max-width: 640px)" src="@MobileSource" type="video/mp4" />
+            <source src="@WebMSource" type="video/webm" />
+            <source src="@DesktopSource" type="video/mp4" />
+        </video>
+        <img class="hero-fallback" src="@FallbackImage" alt="" fetchpriority="high" />
+    </div>
+    <div class="hero-overlay"></div>
+    <div class="container-lvip cinematic-content">
+        <span class="eyebrow eyebrow-light reveal reveal-1">London airport transfers</span>
+        <h1 id="hero-title" class="reveal reveal-2">London, elevated.<br/><em>Every journey considered.</em></h1>
+        <p class="reveal reveal-3">Private airport transfers and chauffeur-led journeys shaped around your time, comfort and peace of mind.</p>
+        <div class="hero-actions reveal reveal-4"><a class="button hero-primary" href="#quote">Plan your journey</a><a class="glass-button" href="/fleet">Explore the fleet</a></div>
+        <div class="hero-proof reveal reveal-4" aria-label="Service highlights"><span>Professional drivers</span><span>Clear pricing</span><span>24/7 pre-booking</span></div>
+    </div>
+    <a class="scroll-cue" href="#quote" aria-label="Continue to journey quote"><span></span>Discover</a>
+</section>
+@code{
+    [Parameter] public string DesktopSource {get;set;}="/media/hero/hero-desktop.mp4";
+    [Parameter] public string MobileSource {get;set;}="/media/hero/hero-mobile.mp4";
+    [Parameter] public string WebMSource {get;set;}="/media/hero/hero.webm";
+    [Parameter] public string Poster {get;set;}="/media/hero/hero-poster.jpg";
+    [Parameter] public string FallbackImage {get;set;}="/media/hero/hero-thumbnail.jpg";
+    private ElementReference Video;private IJSObjectReference?module;
+    protected override async Task OnAfterRenderAsync(bool first){if(!first)return;module=await JS.InvokeAsync<IJSObjectReference>("import","./media/lvip-media.js");await module.InvokeVoidAsync("prepareHero",Video);}
+    public async ValueTask DisposeAsync(){if(module is not null)await module.DisposeAsync();}
+}
