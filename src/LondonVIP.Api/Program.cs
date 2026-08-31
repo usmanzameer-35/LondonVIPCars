@@ -126,8 +126,17 @@ public static class Program
         builder.Services.AddScoped<BookingTransitionService>();
         builder.Services.AddScoped<IQuotationWorkflowService, QuotationWorkflowService>();
         builder.Services.AddScoped<INotificationService, NotificationService>();
-        builder.Services.AddScoped<INotificationProvider, DevelopmentEmailProvider>();builder.Services.AddScoped<IEmailProvider, DevelopmentEmailProvider>();
-        builder.Services.AddScoped<INotificationProvider, DevelopmentSmsProvider>();builder.Services.AddScoped<ISmsProvider, DevelopmentSmsProvider>();
+        if (builder.Environment.IsDevelopment())
+        {
+            builder.Services.AddScoped<INotificationProvider, DevelopmentEmailProvider>(); builder.Services.AddScoped<IEmailProvider, DevelopmentEmailProvider>();
+            builder.Services.AddScoped<INotificationProvider, DevelopmentSmsProvider>(); builder.Services.AddScoped<ISmsProvider, DevelopmentSmsProvider>();
+        }
+        else
+        {
+            builder.Services.AddScoped<SendGridNotificationBridge>(); builder.Services.AddScoped<TwilioSmsNotificationBridge>();
+            builder.Services.AddScoped<INotificationProvider>(sp => sp.GetRequiredService<SendGridNotificationBridge>()); builder.Services.AddScoped<IEmailProvider>(sp => sp.GetRequiredService<SendGridNotificationBridge>());
+            builder.Services.AddScoped<INotificationProvider>(sp => sp.GetRequiredService<TwilioSmsNotificationBridge>()); builder.Services.AddScoped<ISmsProvider>(sp => sp.GetRequiredService<TwilioSmsNotificationBridge>());
+        }
         builder.Services.AddScoped<INotificationProvider, DevelopmentInternalProvider>();
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddScoped<IDashboardService, DashboardService>();
@@ -161,40 +170,50 @@ public static class Program
         builder.Services.AddScoped<IDriverEarningsService, DriverEarningsService>();
         builder.Services.AddScoped<IDriverDocumentService, DriverDocumentService>();
         builder.Services.AddScoped<ICustomerIdentityResolver, CustomerIdentityResolver>();
-        builder.Services.AddScoped<IPaymentGateway, UnconfiguredPaymentGateway>();
-        builder.Services.AddSingleton<UnconfiguredPaymentProvider>();
-        builder.Services.AddSingleton<UnconfiguredMapsProvider>();
-        builder.Services.AddSingleton<UnconfiguredWhatsAppProvider>();
+        builder.Services.AddHttpClient("LondonVIP.Integrations", client => client.Timeout = TimeSpan.FromSeconds(15));
+        builder.Services.AddScoped<StripePaymentProvider>();
+        builder.Services.AddScoped<GoogleMapsPlatformProvider>();
+        builder.Services.AddScoped<TwilioSmsProvider>();
+        builder.Services.AddScoped<TwilioWhatsAppProvider>();
+        builder.Services.AddScoped<SendGridEmailProvider>();
+        builder.Services.AddScoped<TwilioVoiceProvider>();
+        builder.Services.AddScoped<AviationStackFlightProvider>();
+        builder.Services.AddScoped<AzureBlobStorageProvider>();
+        builder.Services.AddScoped<ProductionPdfProvider>();
         builder.Services.AddSingleton<UnconfiguredPushProvider>();
-        builder.Services.AddSingleton<UnconfiguredVoiceProvider>();
-        builder.Services.AddSingleton<UnconfiguredFlightProvider>();
-        builder.Services.AddSingleton<UnconfiguredStorageProvider>();
-        builder.Services.AddSingleton<UnconfiguredPdfProvider>();
-        builder.Services.AddSingleton<IIntegrationProvider>(sp => sp.GetRequiredService<UnconfiguredPaymentProvider>());
-        builder.Services.AddSingleton<IIntegrationProvider>(sp => sp.GetRequiredService<UnconfiguredMapsProvider>());
-        builder.Services.AddSingleton<IIntegrationProvider>(sp => sp.GetRequiredService<UnconfiguredWhatsAppProvider>());
+        builder.Services.AddScoped<IIntegrationProvider>(sp => sp.GetRequiredService<StripePaymentProvider>());
+        builder.Services.AddScoped<IIntegrationProvider>(sp => sp.GetRequiredService<GoogleMapsPlatformProvider>());
+        builder.Services.AddScoped<IIntegrationProvider>(sp => sp.GetRequiredService<TwilioSmsProvider>());
+        builder.Services.AddScoped<IIntegrationProvider>(sp => sp.GetRequiredService<TwilioWhatsAppProvider>());
+        builder.Services.AddScoped<IIntegrationProvider>(sp => sp.GetRequiredService<SendGridEmailProvider>());
+        builder.Services.AddScoped<IIntegrationProvider>(sp => sp.GetRequiredService<TwilioVoiceProvider>());
+        builder.Services.AddScoped<IIntegrationProvider>(sp => sp.GetRequiredService<AviationStackFlightProvider>());
+        builder.Services.AddScoped<IIntegrationProvider>(sp => sp.GetRequiredService<AzureBlobStorageProvider>());
+        builder.Services.AddScoped<IIntegrationProvider>(sp => sp.GetRequiredService<ProductionPdfProvider>());
         builder.Services.AddSingleton<IIntegrationProvider>(sp => sp.GetRequiredService<UnconfiguredPushProvider>());
-        builder.Services.AddSingleton<IIntegrationProvider>(sp => sp.GetRequiredService<UnconfiguredVoiceProvider>());
-        builder.Services.AddSingleton<IIntegrationProvider>(sp => sp.GetRequiredService<UnconfiguredFlightProvider>());
-        builder.Services.AddSingleton<IIntegrationProvider>(sp => sp.GetRequiredService<UnconfiguredStorageProvider>());
-        builder.Services.AddSingleton<IIntegrationProvider>(sp => sp.GetRequiredService<UnconfiguredPdfProvider>());
-        builder.Services.AddSingleton<IIntegrationPaymentProvider>(sp => sp.GetRequiredService<UnconfiguredPaymentProvider>());
-        builder.Services.AddSingleton<IGeocodingProvider>(sp => sp.GetRequiredService<UnconfiguredMapsProvider>());
-        builder.Services.AddSingleton<IRoutingProvider>(sp => sp.GetRequiredService<UnconfiguredMapsProvider>());
-        builder.Services.AddSingleton<IDistanceMatrixProvider>(sp => sp.GetRequiredService<UnconfiguredMapsProvider>());
-        builder.Services.AddSingleton<IPlacesProvider>(sp => sp.GetRequiredService<UnconfiguredMapsProvider>());
-        builder.Services.AddSingleton<IWhatsAppProvider>(sp => sp.GetRequiredService<UnconfiguredWhatsAppProvider>());
+        builder.Services.AddScoped<IIntegrationPaymentProvider>(sp => sp.GetRequiredService<StripePaymentProvider>());
+        builder.Services.AddScoped<IPaymentLifecycleProvider>(sp => sp.GetRequiredService<StripePaymentProvider>());
+        builder.Services.AddScoped<IPaymentGateway, StripeCustomerPaymentGateway>();
+        builder.Services.AddScoped<IGeocodingProvider>(sp => sp.GetRequiredService<GoogleMapsPlatformProvider>());
+        builder.Services.AddScoped<IRoutingProvider>(sp => sp.GetRequiredService<GoogleMapsPlatformProvider>());
+        builder.Services.AddScoped<IDistanceMatrixProvider>(sp => sp.GetRequiredService<GoogleMapsPlatformProvider>());
+        builder.Services.AddScoped<IPlacesProvider>(sp => sp.GetRequiredService<GoogleMapsPlatformProvider>());
+        builder.Services.AddScoped<IWhatsAppProvider>(sp => sp.GetRequiredService<TwilioWhatsAppProvider>());
         builder.Services.AddSingleton<IPushNotificationProvider>(sp => sp.GetRequiredService<UnconfiguredPushProvider>());
-        builder.Services.AddSingleton<IVoiceCallingProvider>(sp => sp.GetRequiredService<UnconfiguredVoiceProvider>());
-        builder.Services.AddSingleton<IFlightDataProvider>(sp => sp.GetRequiredService<UnconfiguredFlightProvider>());
-        builder.Services.AddSingleton<IFileStorageProvider>(sp => sp.GetRequiredService<UnconfiguredStorageProvider>());
-        builder.Services.AddSingleton<IPdfGenerationProvider>(sp => sp.GetRequiredService<UnconfiguredPdfProvider>());
+        builder.Services.AddScoped<IVoiceCallingProvider>(sp => sp.GetRequiredService<TwilioVoiceProvider>());
+        builder.Services.AddScoped<IVoiceCallProvider>(sp => sp.GetRequiredService<TwilioVoiceProvider>());
+        builder.Services.AddScoped<IFlightDataProvider>(sp => sp.GetRequiredService<AviationStackFlightProvider>());
+        builder.Services.AddScoped<IFlightMonitoringProvider>(sp => sp.GetRequiredService<AviationStackFlightProvider>());
+        builder.Services.AddScoped<IFileStorageProvider>(sp => sp.GetRequiredService<AzureBlobStorageProvider>());
+        builder.Services.AddScoped<IPdfGenerationProvider>(sp => sp.GetRequiredService<ProductionPdfProvider>());
         builder.Services.AddSingleton<ISecretProvider, ConfigurationSecretProvider>();
-        builder.Services.AddSingleton<IProviderRegistry, ProviderRegistry>();
+        builder.Services.AddScoped<IProviderRegistry, ProviderRegistry>();
         builder.Services.AddSingleton<IIntegrationExecutionPolicy, IntegrationExecutionPolicy>();
         builder.Services.AddSingleton<IWebhookSignatureValidator, HmacWebhookSignatureValidator>();
-        builder.Services.AddSingleton<IWebhookEngine, InMemoryWebhookEngine>();
-        builder.Services.AddSingleton<IntegrationDiagnosticsService>();
+        builder.Services.AddScoped<PersistentWebhookEngine>();
+        builder.Services.AddScoped<IWebhookEngine>(sp => sp.GetRequiredService<PersistentWebhookEngine>());
+        builder.Services.AddScoped<IWebhookAdministrationService>(sp => sp.GetRequiredService<PersistentWebhookEngine>());
+        builder.Services.AddScoped<IntegrationDiagnosticsService>();
         builder.Services.AddHostedService<IdentityBootstrapper>();
         configureServices?.Invoke(builder.Services);
 

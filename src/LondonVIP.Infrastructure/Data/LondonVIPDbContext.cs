@@ -52,6 +52,10 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
     public DbSet<CustomerAddress> CustomerAddresses => Set<CustomerAddress>();
     public DbSet<CustomerPreferences> CustomerPreferences => Set<CustomerPreferences>();
     public DbSet<CustomerAccountActivity> CustomerAccountActivities => Set<CustomerAccountActivity>();
+    public DbSet<IntegrationWebhookDelivery> IntegrationWebhookDeliveries => Set<IntegrationWebhookDelivery>();
+    public DbSet<IntegrationProviderMetric> IntegrationProviderMetrics => Set<IntegrationProviderMetric>();
+    public DbSet<IntegrationResourceReference> IntegrationResourceReferences => Set<IntegrationResourceReference>();
+    public DbSet<IntegrationCommunicationLog> IntegrationCommunicationLogs => Set<IntegrationCommunicationLog>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -64,6 +68,49 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
             entity.HasOne<Driver>().WithMany().HasForeignKey(user => user.DriverId).OnDelete(DeleteBehavior.Restrict);
             entity.HasIndex(user => new { user.CompanyId, user.CustomerId }).IsUnique().HasFilter("[CustomerId] IS NOT NULL");
             entity.HasOne<Customer>().WithMany().HasForeignKey(user => user.CustomerId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<IntegrationWebhookDelivery>(entity =>
+        {
+            entity.Property(x => x.ProviderKey).HasMaxLength(100);
+            entity.Property(x => x.EventType).HasMaxLength(150);
+            entity.Property(x => x.DeliveryId).HasMaxLength(200);
+            entity.Property(x => x.Signature).HasMaxLength(1000);
+            entity.Property(x => x.LastError).HasMaxLength(2000);
+            entity.Property(x => x.CorrelationId).HasMaxLength(100);
+            entity.HasIndex(x => new { x.CompanyId, x.ProviderKey, x.DeliveryId }).IsUnique();
+            entity.HasIndex(x => new { x.CompanyId, x.Status, x.NextAttemptAt });
+            entity.HasOne(x => x.Company).WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<IntegrationProviderMetric>(entity =>
+        {
+            entity.Property(x => x.ProviderKey).HasMaxLength(100);
+            entity.Property(x => x.Operation).HasMaxLength(150);
+            entity.Property(x => x.ErrorCode).HasMaxLength(100);
+            entity.Property(x => x.CorrelationId).HasMaxLength(100);
+            entity.HasIndex(x => new { x.CompanyId, x.ProviderKey, x.OccurredAt });
+            entity.HasOne(x => x.Company).WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<IntegrationResourceReference>(entity =>
+        {
+            entity.Property(x => x.ProviderKey).HasMaxLength(100);
+            entity.Property(x => x.ResourceType).HasMaxLength(100);
+            entity.Property(x => x.ProviderResourceId).HasMaxLength(250);
+            entity.HasIndex(x => new { x.CompanyId, x.ProviderKey, x.ResourceType, x.LocalResourceId }).IsUnique();
+            entity.HasIndex(x => new { x.CompanyId, x.ProviderKey, x.ProviderResourceId }).IsUnique();
+            entity.HasOne(x => x.Company).WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<IntegrationCommunicationLog>(entity =>
+        {
+            entity.Property(x => x.ProviderKey).HasMaxLength(100);
+            entity.Property(x => x.Channel).HasMaxLength(50);
+            entity.Property(x => x.Recipient).HasMaxLength(320);
+            entity.Property(x => x.ProviderReference).HasMaxLength(250);
+            entity.Property(x => x.Status).HasMaxLength(50);
+            entity.Property(x => x.CorrelationId).HasMaxLength(100);
+            entity.HasIndex(x => new { x.CompanyId, x.ProviderKey, x.ProviderReference });
+            entity.HasIndex(x => new { x.CompanyId, x.BookingId, x.CreatedAt });
+            entity.HasOne(x => x.Company).WithMany().HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Booking).WithMany().HasForeignKey(x => x.BookingId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<SecurityAuditEvent>(entity =>
         {

@@ -5,6 +5,10 @@ using System.Text;
 using LondonVIP.Shared.Integrations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using LondonVIP.Infrastructure.Data;
+using LondonVIP.Shared.Models;
+using LondonVIP.Shared.Tenancy;
+using Microsoft.EntityFrameworkCore;
 
 namespace LondonVIP.Infrastructure.Integrations;
 
@@ -105,6 +109,41 @@ public sealed class InMemoryWebhookEngine(IWebhookSignatureValidator signatures,
     }
     public Task<WebhookResult> SendAsync(string providerKey, string eventType, string payload, CancellationToken cancellationToken = default)
     { Interlocked.Increment(ref pending); logger.LogInformation("Queued outgoing {ProviderKey} webhook {EventType}.", providerKey, eventType); return Task.FromResult(new WebhookResult(true, false, "Webhook queued for a future provider.")); }
+}
+
+public sealed class PersistentWebhookEngine(LondonVIPDbContext db, ICompanyContext company, IWebhookSignatureValidator signatures, ISecretProvider secrets, ILogger<PersistentWebhookEngine> logger) : IWebhookEngine, IWebhookAdministrationService
+{
+    public int PendingCount => db.IntegrationWebhookDeliveries.Count(x => x.CompanyId == company.CompanyId && x.Status == WebhookDeliveryState.Pending);
+    public int FailedCount => db.IntegrationWebhookDeliveries.Count(x => x.CompanyId == company.CompanyId && (x.Status == WebhookDeliveryState.Failed || x.Status == WebhookDeliveryState.DeadLettered));
+    public async Task<WebhookResult> ReceiveAsync(string providerKey, string eventType, string payload, string? signature, string deliveryId, CancellationToken token = default)
+    {
+        var existing = await db.IntegrationWebhookDeliveries.AsNoTracking().AnyAsync(x => x.CompanyId == company.CompanyId && x.ProviderKey == providerKey && x.DeliveryId == deliveryId, token);
+        if (existing) return new(false, true, "Webhook delivery was already processed.");
+        var secret = await secrets.GetSecretAsync($"{providerKey}:WebhookSecret", token);
+        var valid = !string.IsNullOrWhiteSpace(secret) && signature is not null && signatures.Validate(payload, signature, secret);
+        var now = DateTimeOffset.UtcNow;
+        db.IntegrationWebhookDeliveries.Add(new() { Id = Guid.NewGuid(), CompanyId = company.CompanyId, ProviderKey = providerKey, EventType = eventType, Direction = WebhookDirection.Incoming, Status = valid ? WebhookDeliveryState.Delivered : WebhookDeliveryState.Failed, DeliveryId = deliveryId, Payload = payload, Signature = signature, AttemptCount = 1, CreatedAt = now, UpdatedAt = now, CompletedAt = valid ? now : null, LastError = valid ? null : "Signature validation failed or webhook secret is not configured.", CorrelationId = Activity.Current?.TraceId.ToString() ?? Guid.NewGuid().ToString("N") });
+        await db.SaveChangesAsync(token);
+        if (!valid) return new(false, false, "Webhook signature is invalid or the provider is not configured.");
+        logger.LogInformation("Persisted {ProviderKey} webhook {EventType} delivery {DeliveryId}.", providerKey, eventType, deliveryId);
+        return new(true, false, "Webhook accepted.");
+    }
+    public async Task<WebhookResult> SendAsync(string providerKey, string eventType, string payload, CancellationToken token = default)
+    {
+        var now = DateTimeOffset.UtcNow;
+        db.IntegrationWebhookDeliveries.Add(new() { Id = Guid.NewGuid(), CompanyId = company.CompanyId, ProviderKey = providerKey, EventType = eventType, Direction = WebhookDirection.Outgoing, Status = WebhookDeliveryState.Pending, DeliveryId = Guid.NewGuid().ToString("N"), Payload = payload, AttemptCount = 0, CreatedAt = now, UpdatedAt = now, NextAttemptAt = now, CorrelationId = Activity.Current?.TraceId.ToString() ?? Guid.NewGuid().ToString("N") });
+        await db.SaveChangesAsync(token); return new(true, false, "Webhook queued.");
+    }
+    public async Task<IReadOnlyList<WebhookDeliveryDto>> ListAsync(WebhookDeliveryState? status, CancellationToken token = default)
+    {
+        var query = db.IntegrationWebhookDeliveries.AsNoTracking().Where(x => x.CompanyId == company.CompanyId); if (status is not null) query = query.Where(x => x.Status == status);
+        return await query.OrderByDescending(x => x.CreatedAt).Take(500).Select(x => new WebhookDeliveryDto(x.Id, x.ProviderKey, x.EventType, x.Direction, x.Status, x.AttemptCount, x.CreatedAt, x.NextAttemptAt, x.LastError)).ToListAsync(token);
+    }
+    public async Task<bool> RetryAsync(Guid id, CancellationToken token = default)
+    {
+        var item = await db.IntegrationWebhookDeliveries.SingleOrDefaultAsync(x => x.Id == id && x.CompanyId == company.CompanyId && (x.Status == WebhookDeliveryState.Failed || x.Status == WebhookDeliveryState.DeadLettered), token); if (item is null) return false;
+        item.AttemptCount++; item.UpdatedAt = DateTimeOffset.UtcNow; item.Status = item.AttemptCount >= item.MaxAttempts ? WebhookDeliveryState.DeadLettered : WebhookDeliveryState.Pending; item.NextAttemptAt = item.Status == WebhookDeliveryState.Pending ? DateTimeOffset.UtcNow.AddMinutes(Math.Pow(2, Math.Min(item.AttemptCount, 6))) : null; await db.SaveChangesAsync(token); return true;
+    }
 }
 
 public sealed class IntegrationDiagnosticsService(IProviderRegistry registry, ISecretProvider secrets, IWebhookEngine webhooks)

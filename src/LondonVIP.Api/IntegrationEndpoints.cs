@@ -19,7 +19,16 @@ public static class IntegrationEndpoints
         group.MapPost("/connections/test", TestConnectionAsync);
         group.MapPost("/webhooks/test", TestWebhookAsync);
         group.MapPost("/webhooks/{providerKey}/{eventType}", ReceiveWebhookAsync);
+        group.MapGet("/webhooks", ListWebhooksAsync);
+        group.MapPost("/webhooks/{id:guid}/retry", RetryWebhookAsync);
         return endpoints;
+    }
+    private static async Task<IResult> ListWebhooksAsync(WebhookDeliveryState? status, IWebhookAdministrationService service, CancellationToken token) => Results.Ok(await service.ListAsync(status, token));
+    private static async Task<IResult> RetryWebhookAsync(Guid id, IWebhookAdministrationService service, IAuditService audit, ICompanyContext company, CancellationToken token)
+    {
+        var updated = await service.RetryAsync(id, token); if (!updated) return Results.NotFound();
+        await audit.WriteAsync("IntegrationWebhookRetried", "Integrations", "Succeeded", SecurityEventSeverity.Warning, "A failed webhook was queued for retry.", "Webhook", id.ToString(), company.CompanyId, token);
+        return Results.Accepted();
     }
 
     private static async Task<IResult> DashboardAsync(IntegrationDiagnosticsService diagnostics, IAuditService audit, ICompanyContext company, CancellationToken token)

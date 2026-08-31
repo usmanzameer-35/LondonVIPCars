@@ -39,7 +39,7 @@ public sealed class IntegrationFrameworkTests
         var dashboard = await response.Content.ReadFromJsonAsync<IntegrationDashboardDto>();
         Assert.NotNull(dashboard);
         Assert.NotEmpty(dashboard.Providers);
-        Assert.All(dashboard.Health, x => Assert.Equal(IntegrationHealthState.NotConfigured, x.State));
+        Assert.All(dashboard.Health, x => Assert.Contains(x.State, new[] { IntegrationHealthState.NotConfigured, IntegrationHealthState.Healthy }));
     }
 
     [Fact]
@@ -77,5 +77,40 @@ public sealed class IntegrationFrameworkTests
         var provider = new ConfigurationSecretProvider(configuration);
         Assert.Equal("not-returned", await provider.GetSecretAsync("ApiKey"));
         Assert.DoesNotContain(typeof(IntegrationDashboardDto).GetProperties(), x => x.Name.Contains("Secret", StringComparison.Ordinal) && x.PropertyType == typeof(string));
+    }
+
+    [Fact]
+    public async Task ProductionProvidersDegradeGracefullyWithoutCredentialsAndPdfProducesAValidDocument()
+    {
+        await using var host = await TestApiHost.StartAsync();
+        await using var scope = host.App.Services.CreateAsyncScope();
+        var payment = scope.ServiceProvider.GetRequiredService<IPaymentLifecycleProvider>();
+        var result = await payment.AuthorizeAsync(new(25m, "GBP", "BOOK-1", null));
+        Assert.False(result.Success);
+        Assert.Contains("not configured", result.Error, StringComparison.OrdinalIgnoreCase);
+        var maps = scope.ServiceProvider.GetRequiredService<IGeocodingProvider>();
+        Assert.Null(await maps.GeocodeAsync("London"));
+        var flights = scope.ServiceProvider.GetRequiredService<IFlightDataProvider>();
+        Assert.Null(await flights.LookupAsync("BA123", DateOnly.FromDateTime(DateTime.UtcNow)));
+        var pdf = scope.ServiceProvider.GetRequiredService<IPdfGenerationProvider>();
+        var bytes = await pdf.GenerateAsync(PdfDocumentType.Invoice, new { InvoiceNumber = "INV-1", Total = 25m });
+        Assert.StartsWith("%PDF-1.4", Encoding.ASCII.GetString(bytes));
+    }
+
+    [Fact]
+    public async Task PersistentWebhookQueueIsTenantScopedAndSupportsDeadLetterRetryState()
+    {
+        await using var host = await TestApiHost.StartAsync();
+        await using var scope = host.App.Services.CreateAsyncScope();
+        var engine = scope.ServiceProvider.GetRequiredService<IWebhookEngine>();
+        var failed = await engine.ReceiveAsync("stripe", "payment_intent.succeeded", "{}", "invalid", "delivery-1");
+        Assert.False(failed.Accepted);
+        var administration = scope.ServiceProvider.GetRequiredService<IWebhookAdministrationService>();
+        var rows = await administration.ListAsync(WebhookDeliveryState.Failed);
+        var row = Assert.Single(rows);
+        Assert.Equal("stripe", row.ProviderKey);
+        Assert.True(await administration.RetryAsync(row.Id));
+        var queued = await administration.ListAsync(WebhookDeliveryState.Pending);
+        Assert.Contains(queued, x => x.Id == row.Id);
     }
 }

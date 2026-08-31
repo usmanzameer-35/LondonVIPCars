@@ -34,6 +34,18 @@ public interface IIntegrationExecutionPolicy
 public sealed record PaymentProviderRequest(decimal Amount, string CurrencyCode, string Reference, string? PaymentMethodToken);
 public sealed record PaymentProviderResult(bool Success, string? ProviderReference, string? Error);
 public interface IIntegrationPaymentProvider : IIntegrationProvider { Task<PaymentProviderResult> AuthorizeAsync(PaymentProviderRequest request, CancellationToken cancellationToken = default); }
+public sealed record ProviderCustomerRequest(Guid CustomerId, string Email, string Name, string? Phone);
+public sealed record ProviderCustomerResult(bool Success, string? ProviderCustomerId, string? Error);
+public sealed record SavedPaymentMethodDto(string Id, string Type, string DisplayName, bool IsDefault);
+public sealed record RefundRequest(string PaymentReference, decimal? Amount, string IdempotencyKey, string? Reason = null);
+public interface IPaymentLifecycleProvider : IIntegrationPaymentProvider
+{
+    Task<ProviderCustomerResult> CreateCustomerAsync(ProviderCustomerRequest request, string idempotencyKey, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<SavedPaymentMethodDto>> GetSavedPaymentMethodsAsync(string providerCustomerId, CancellationToken cancellationToken = default);
+    Task<PaymentProviderResult> RefundAsync(RefundRequest request, CancellationToken cancellationToken = default);
+    Task<DeliveryReport?> SynchronizeStatusAsync(string providerReference, CancellationToken cancellationToken = default);
+    bool VerifyWebhook(string payload, string signature);
+}
 
 public sealed record IntegrationCoordinate(double Latitude, double Longitude);
 public sealed record IntegrationRouteRequest(IntegrationCoordinate Origin, IntegrationCoordinate Destination, IReadOnlyList<IntegrationCoordinate>? Stops = null);
@@ -56,9 +68,13 @@ public interface ICommunicationProvider : IIntegrationProvider
 public interface IWhatsAppProvider : ICommunicationProvider;
 public interface IPushNotificationProvider : ICommunicationProvider;
 public interface IVoiceCallingProvider : ICommunicationProvider;
+public sealed record VoiceCallRequest(string From, string To, Uri CallbackUrl, Guid? BookingId, string CorrelationId);
+public sealed record VoiceCallResult(bool Accepted, string? ProviderReference, string? Error);
+public interface IVoiceCallProvider : IVoiceCallingProvider { Task<VoiceCallResult> StartCallAsync(VoiceCallRequest request, CancellationToken cancellationToken = default); }
 
 public sealed record FlightDataResult(string FlightNumber, string Status, string? Gate, int DelayMinutes, DateTimeOffset? PredictedArrival, bool IsCancelled);
 public interface IFlightDataProvider : IIntegrationProvider { Task<FlightDataResult?> LookupAsync(string flightNumber, DateOnly date, CancellationToken cancellationToken = default); Task<IReadOnlyDictionary<string, string>> GetAirportMetadataAsync(string airportCode, CancellationToken cancellationToken = default); }
+public interface IFlightMonitoringProvider : IFlightDataProvider { Task<IReadOnlyList<FlightDataResult>> MonitorArrivalsAsync(string airportCode, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default); Task<IReadOnlyList<FlightDataResult>> MonitorDeparturesAsync(string airportCode, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken = default); }
 
 public interface IFileStorageProvider : IIntegrationProvider { Task<string> SaveAsync(string path, Stream content, string contentType, CancellationToken cancellationToken = default); Task<Stream?> OpenReadAsync(string path, CancellationToken cancellationToken = default); Task DeleteAsync(string path, CancellationToken cancellationToken = default); }
 public enum PdfDocumentType { Invoice, Receipt, BookingConfirmation, CorporateStatement, DriverSummary }
@@ -73,3 +89,5 @@ public interface IWebhookEngine
     int PendingCount { get; }
     int FailedCount { get; }
 }
+public sealed record WebhookDeliveryDto(Guid Id, string ProviderKey, string EventType, WebhookDirection Direction, WebhookDeliveryState Status, int AttemptCount, DateTimeOffset CreatedAt, DateTimeOffset? NextAttemptAt, string? LastError);
+public interface IWebhookAdministrationService { Task<IReadOnlyList<WebhookDeliveryDto>> ListAsync(WebhookDeliveryState? status, CancellationToken cancellationToken = default); Task<bool> RetryAsync(Guid id, CancellationToken cancellationToken = default); }
