@@ -9,6 +9,9 @@ public static class ErpModuleCatalog
         M("Operations", "Bookings", "/erp/bookings", "Coordinate confirmed and upcoming passenger journeys.", "Booking register", "Journey details", "Status workflow"),
         M("Operations", "Dispatch", "/erp/dispatch", "Assign work and monitor the daily operations board.", "Driver assignment", "Dispatch board", "Job status"),
         M("Operations", "Airport Operations / Flights", "/erp/airport-operations", "Coordinate airport collections and arrival activity.", "Arrival board", "Waiting windows", "Pickup coordination"),
+        M("Operations", "Maps", "/erp/map", "Monitor tenant-owned drivers and journeys geographically.", "Live driver map", "Journey routes", "Operational search"),
+        M("Operations", "Live Tracking", "/erp/live-tracking", "Monitor fresh driver GPS positions and current journey progress.", "Online status", "Live ETA", "Journey progress"),
+        M("Operations", "Journey Replay", "/erp/journey-replay", "Review timestamped journey history for operational investigation.", "GPS history", "Route replay", "Timeline"),
 
         M("CRM", "Leads & CRM", "/erp/leads", "Track opportunities from first enquiry through conversion.", "Source and campaign", "Landing page attribution", "Quote and booking linkage", "Won/lost lead status", "Follow-up tasks", "Conversion reporting"),
         M("CRM", "Customers", "/erp/customers", "Maintain a consistent view of passenger relationships.", "Customer directory", "Journey history", "Preferences"),

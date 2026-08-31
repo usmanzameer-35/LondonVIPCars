@@ -34,4 +34,8 @@ public class Company
     public ICollection<BusinessEventRecord> BusinessEvents { get; set; } = [];
     public ICollection<WorkflowJob> WorkflowJobs { get; set; } = [];
     public ICollection<WorkflowRule> WorkflowRules { get; set; } = [];
+    public ICollection<DriverLocation> DriverLocations { get; set; } = [];
+    public ICollection<JourneySnapshot> JourneySnapshots { get; set; } = [];
+    public ICollection<CustomerTrackingToken> CustomerTrackingTokens { get; set; } = [];
+    public ICollection<Geofence> Geofences { get; set; } = [];
 }

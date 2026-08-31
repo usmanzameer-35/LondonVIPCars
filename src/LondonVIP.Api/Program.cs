@@ -19,6 +19,8 @@ using LondonVIP.Infrastructure.Dispatch;
 using LondonVIP.Shared.Dispatch;
 using LondonVIP.Infrastructure.Workflows;
 using LondonVIP.Shared.Workflows;
+using LondonVIP.Infrastructure.Maps;
+using LondonVIP.Shared.Maps;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -137,6 +139,14 @@ public static class Program
         builder.Services.AddScoped<IRuleEngine, RuleEngine>();
         builder.Services.AddScoped<IReminderService, ReminderService>();
         builder.Services.AddScoped<IEscalationService, EscalationService>();
+        builder.Services.AddScoped<IMapProvider, GoogleMapsProvider>();
+        builder.Services.AddScoped<IGeocodingService, GeocodingService>();
+        builder.Services.AddScoped<IRouteService, RouteService>();
+        builder.Services.AddScoped<ILiveTrackingService, LiveTrackingService>();
+        builder.Services.AddScoped<IGPSLocationService, GPSLocationService>();
+        builder.Services.AddScoped<IJourneyMonitoringService, JourneyMonitoringService>();
+        builder.Services.AddScoped<IGeofenceService, GeofenceService>();
+        builder.Services.AddScoped<IAirportMonitoringService, AirportMonitoringService>();
         builder.Services.AddHostedService<IdentityBootstrapper>();
         configureServices?.Invoke(builder.Services);
 
@@ -195,7 +205,9 @@ public static class Program
         app.MapNotificationEndpoints();
         app.MapDashboardEndpoints();
         app.MapWorkflowEndpoints();
+        app.MapMapEndpoints();
         app.MapHub<DispatchHub>("/hubs/dispatch").RequireAuthorization(SecurityPolicies.DispatchOperations);
+        app.MapHub<JourneyHub>("/hubs/journeys").RequireAuthorization(SecurityPolicies.ErpAccess);
 
         var summaries = new[]
         {

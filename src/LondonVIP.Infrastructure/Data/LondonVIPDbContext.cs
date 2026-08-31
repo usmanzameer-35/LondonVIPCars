@@ -42,6 +42,10 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
     public DbSet<BusinessEventRecord> BusinessEvents => Set<BusinessEventRecord>();
     public DbSet<WorkflowJob> WorkflowJobs => Set<WorkflowJob>();
     public DbSet<WorkflowRule> WorkflowRules => Set<WorkflowRule>();
+    public DbSet<DriverLocation> DriverLocations => Set<DriverLocation>();
+    public DbSet<JourneySnapshot> JourneySnapshots => Set<JourneySnapshot>();
+    public DbSet<CustomerTrackingToken> CustomerTrackingTokens => Set<CustomerTrackingToken>();
+    public DbSet<Geofence> Geofences => Set<Geofence>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -207,6 +211,38 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
         {
             entity.Property(x=>x.Name).HasMaxLength(150);entity.Property(x=>x.EventType).HasMaxLength(100);entity.Property(x=>x.ConditionField).HasMaxLength(100);entity.Property(x=>x.Operator).HasMaxLength(30);entity.Property(x=>x.ComparisonValue).HasMaxLength(500);entity.Property(x=>x.Action).HasMaxLength(100);
             entity.HasIndex(x=>new{x.CompanyId,x.EventType,x.IsActive,x.Priority});entity.HasOne(x=>x.Company).WithMany(x=>x.WorkflowRules).HasForeignKey(x=>x.CompanyId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<DriverLocation>(entity =>
+        {
+            entity.HasIndex(x => new { x.CompanyId, x.DriverId, x.RecordedAt });
+            entity.HasIndex(x => new { x.CompanyId, x.BookingId, x.RecordedAt });
+            entity.HasOne(x => x.Company).WithMany(x => x.DriverLocations).HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Driver).WithMany().HasForeignKey(x => x.DriverId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Vehicle).WithMany().HasForeignKey(x => x.VehicleId).OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne(x => x.Booking).WithMany().HasForeignKey(x => x.BookingId).OnDelete(DeleteBehavior.SetNull);
+        });
+        modelBuilder.Entity<JourneySnapshot>(entity =>
+        {
+            entity.Property(x => x.RouteJson).HasMaxLength(16000);
+            entity.Property(x => x.Status).HasMaxLength(50);
+            entity.HasIndex(x => new { x.CompanyId, x.BookingId, x.CapturedAt });
+            entity.HasOne(x => x.Company).WithMany(x => x.JourneySnapshots).HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Booking).WithMany().HasForeignKey(x => x.BookingId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<CustomerTrackingToken>(entity =>
+        {
+            entity.Property(x => x.TokenHash).HasMaxLength(64);
+            entity.HasIndex(x => x.TokenHash).IsUnique();
+            entity.HasIndex(x => new { x.CompanyId, x.BookingId, x.ExpiresAt });
+            entity.HasOne(x => x.Company).WithMany(x => x.CustomerTrackingTokens).HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Booking).WithMany().HasForeignKey(x => x.BookingId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<Geofence>(entity =>
+        {
+            entity.Property(x => x.Name).HasMaxLength(150);
+            entity.Property(x => x.Type).HasMaxLength(50);
+            entity.HasIndex(x => new { x.CompanyId, x.Type, x.IsActive });
+            entity.HasOne(x => x.Company).WithMany(x => x.Geofences).HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Company>(entity =>
