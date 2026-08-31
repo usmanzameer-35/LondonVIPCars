@@ -46,6 +46,9 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
     public DbSet<JourneySnapshot> JourneySnapshots => Set<JourneySnapshot>();
     public DbSet<CustomerTrackingToken> CustomerTrackingTokens => Set<CustomerTrackingToken>();
     public DbSet<Geofence> Geofences => Set<Geofence>();
+    public DbSet<DriverShift> DriverShifts => Set<DriverShift>();
+    public DbSet<DriverJobDecline> DriverJobDeclines => Set<DriverJobDecline>();
+    public DbSet<DriverVehicleIssue> DriverVehicleIssues => Set<DriverVehicleIssue>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -54,6 +57,8 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
         {
             entity.HasIndex(user => new { user.CompanyId, user.NormalizedEmail });
             entity.HasOne<Company>().WithMany().HasForeignKey(user => user.CompanyId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(user => new { user.CompanyId, user.DriverId }).IsUnique().HasFilter("[DriverId] IS NOT NULL");
+            entity.HasOne<Driver>().WithMany().HasForeignKey(user => user.DriverId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<SecurityAuditEvent>(entity =>
         {
@@ -243,6 +248,31 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
             entity.Property(x => x.Type).HasMaxLength(50);
             entity.HasIndex(x => new { x.CompanyId, x.Type, x.IsActive });
             entity.HasOne(x => x.Company).WithMany(x => x.Geofences).HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<DriverShift>(entity =>
+        {
+            entity.HasIndex(x => new { x.CompanyId, x.DriverId, x.StartedAt });
+            entity.HasOne(x => x.Company).WithMany(x => x.DriverShifts).HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Driver).WithMany().HasForeignKey(x => x.DriverId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<DriverJobDecline>(entity =>
+        {
+            entity.Property(x => x.Reason).HasMaxLength(100); entity.Property(x => x.Note).HasMaxLength(1000);
+            entity.HasIndex(x => new { x.CompanyId, x.DriverId, x.CreatedAt });
+            entity.HasIndex(x => new { x.CompanyId, x.BookingId });
+            entity.HasOne(x => x.Company).WithMany(x => x.DriverJobDeclines).HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Driver).WithMany().HasForeignKey(x => x.DriverId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Booking).WithMany().HasForeignKey(x => x.BookingId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<DriverVehicleIssue>(entity =>
+        {
+            entity.Property(x => x.Category).HasMaxLength(100); entity.Property(x => x.Severity).HasMaxLength(30); entity.Property(x => x.Description).HasMaxLength(2000); entity.Property(x => x.Status).HasMaxLength(30);
+            entity.HasIndex(x => new { x.CompanyId, x.Status, x.CreatedAt });
+            entity.HasIndex(x => new { x.CompanyId, x.DriverId, x.CreatedAt });
+            entity.HasOne(x => x.Company).WithMany(x => x.DriverVehicleIssues).HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Driver).WithMany().HasForeignKey(x => x.DriverId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Vehicle).WithMany().HasForeignKey(x => x.VehicleId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Booking).WithMany().HasForeignKey(x => x.BookingId).OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<Company>(entity =>

@@ -34,7 +34,7 @@
     private LiveMapDto? map; private bool loading = true; private string? error; private string search = ""; private bool onlineOnly; private List<MapSearchResultDto> results = [];
     private IEnumerable<DriverLocationDto> VisibleDrivers => (map?.Drivers ?? []).Where(x => !onlineOnly || x.IsOnline);
     protected override Task OnInitializedAsync() => LoadAsync();
-    private async Task LoadAsync() { loading = true; error = null; try { map = await HttpClientFactory.CreateClient("Api").GetFromJsonAsync<LiveMapDto>("api/maps"); } catch (Exception ex) { error = ex.Message; } finally { loading = false; } }
-    private async Task SearchAsync() { if (string.IsNullOrWhiteSpace(search)) { results = []; return; } results = await HttpClientFactory.CreateClient("Api").GetFromJsonAsync<List<MapSearchResultDto>>($"api/maps/search?q={Uri.EscapeDataString(search)}") ?? []; }
+    private async Task LoadAsync() { loading = true; error = null; try { map = await HttpClientFactory.CreateClient("LondonVIP.Api").GetFromJsonAsync<LiveMapDto>("api/maps"); } catch (Exception ex) { error = ex.Message; } finally { loading = false; } }
+    private async Task SearchAsync() { if (string.IsNullOrWhiteSpace(search)) { results = []; return; } results = await HttpClientFactory.CreateClient("LondonVIP.Api").GetFromJsonAsync<List<MapSearchResultDto>>($"api/maps/search?q={Uri.EscapeDataString(search)}") ?? []; }
     private static string MarkerStyle(DriverLocationDto item) { var left = Math.Abs(item.Longitude * 7) % 88 + 4; var top = Math.Abs(item.Latitude * 7) % 78 + 12; return $"left:{left:0.##}%;top:{top:0.##}%"; }
 }

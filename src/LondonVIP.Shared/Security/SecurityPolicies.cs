@@ -18,4 +18,5 @@ public static class SecurityPolicies
     public const string CorporateAccountsWrite = nameof(CorporateAccountsWrite);
     public const string CorporateAccountsFinancialWrite = nameof(CorporateAccountsFinancialWrite);
     public const string PlatformAdministration = nameof(PlatformAdministration);
+    public const string DriverPortal = nameof(DriverPortal);
 }

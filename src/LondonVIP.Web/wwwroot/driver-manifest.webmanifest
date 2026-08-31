@@ -1,0 +1,13 @@
+{
+  "name": "London VIP Cars Driver",
+  "short_name": "LVC Driver",
+  "description": "Driver operations workspace for London VIP Cars.",
+  "start_url": "/driver",
+  "scope": "/driver",
+  "display": "standalone",
+  "background_color": "#f3f5f3",
+  "theme_color": "#113a32",
+  "icons": [
+    { "src": "/favicon.png", "sizes": "any", "type": "image/png" }
+  ]
+}

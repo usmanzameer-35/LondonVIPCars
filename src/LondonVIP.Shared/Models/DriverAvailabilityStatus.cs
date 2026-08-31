@@ -5,5 +5,7 @@ public enum DriverAvailabilityStatus
     Available,
     Busy,
     Offline,
-    OnBreak
+    OnBreak,
+    Suspended,
+    ComplianceBlocked
 }

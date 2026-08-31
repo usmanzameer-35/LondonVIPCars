@@ -63,7 +63,7 @@ public static class WebProgram
             {
                 context.Response.Headers.XContentTypeOptions = "nosniff";
                 context.Response.Headers["Referrer-Policy"] = "strict-origin-when-cross-origin";
-                context.Response.Headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(), payment=()";
+                context.Response.Headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=(self), payment=()";
                 context.Response.Headers.ContentSecurityPolicy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' ws: wss:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
                 return Task.CompletedTask;
             });

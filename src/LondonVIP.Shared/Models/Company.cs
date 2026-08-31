@@ -38,4 +38,7 @@ public class Company
     public ICollection<JourneySnapshot> JourneySnapshots { get; set; } = [];
     public ICollection<CustomerTrackingToken> CustomerTrackingTokens { get; set; } = [];
     public ICollection<Geofence> Geofences { get; set; } = [];
+    public ICollection<DriverShift> DriverShifts { get; set; } = [];
+    public ICollection<DriverJobDecline> DriverJobDeclines { get; set; } = [];
+    public ICollection<DriverVehicleIssue> DriverVehicleIssues { get; set; } = [];
 }
