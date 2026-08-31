@@ -15,7 +15,7 @@ public class ErpShellTests
     [Fact]
     public void ModuleCatalog_ContainsUniqueRoutesAndCompanySetupLink()
     {
-        Assert.Equal(28, ErpModuleCatalog.All.Count);
+        Assert.Equal(29, ErpModuleCatalog.All.Count);
         Assert.Equal(ErpModuleCatalog.All.Count, ErpModuleCatalog.All.Select(item => item.Route).Distinct(StringComparer.OrdinalIgnoreCase).Count());
         Assert.Contains(ErpModuleCatalog.All, item => item.Route == "/erp/company-setup" && item.Title == "Company Setup");
         Assert.Contains(ErpModuleCatalog.All, item => item.Title == "Leads & CRM");

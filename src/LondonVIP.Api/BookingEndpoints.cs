@@ -9,6 +9,7 @@ using LondonVIP.Shared.Invoicing;
 using LondonVIP.Shared.Invoices;
 using Microsoft.EntityFrameworkCore;
 using LondonVIP.Shared.Notifications;
+using LondonVIP.Shared.Workflows;
 
 namespace LondonVIP.Api;
 
@@ -29,7 +30,7 @@ public static class BookingEndpoints
         return endpoints;
     }
 
-    private static async Task<IResult> GenerateInvoiceAsync(Guid bookingId, IBookingInvoiceService service, IAuditService audit, ICompanyContext company,INotificationService notifications,CancellationToken cancellationToken)
+    private static async Task<IResult> GenerateInvoiceAsync(Guid bookingId, IBookingInvoiceService service, IAuditService audit, ICompanyContext company,INotificationService notifications,IBusinessEventPublisher events,CancellationToken cancellationToken)
     {
         var result = await service.GenerateInvoiceAsync(bookingId, cancellationToken);
         if (result.Outcome == InvoiceGenerationOutcome.NotFound)
@@ -47,7 +48,7 @@ public static class BookingEndpoints
         var alreadyExists = result.Outcome == InvoiceGenerationOutcome.AlreadyExists;
         await audit.WriteAsync(alreadyExists ? "BookingInvoiceAlreadyExists" : "BookingInvoiceCreated", "Invoice", "Succeeded", SecurityEventSeverity.Information,
             alreadyExists ? "Invoice already existed for booking." : "Invoice created from booking.", "Invoice", invoice.Id.ToString(), company.CompanyId, cancellationToken);
-        if(!alreadyExists)await notifications.QueueAsync(new(invoice.Customer?.Email??invoice.CustomerId?.ToString()??"finance",invoice.CustomerId.HasValue?NotificationRecipientType.Customer:NotificationRecipientType.CorporateAccount,NotificationType.InvoiceGenerated,"Invoice generated",$"Invoice {invoice.InvoiceNumber} has been generated.","invoice-generated",CorrelationId:invoice.Id.ToString()),cancellationToken);
+        if(!alreadyExists){await notifications.QueueAsync(new(invoice.Customer?.Email??invoice.CustomerId?.ToString()??"finance",invoice.CustomerId.HasValue?NotificationRecipientType.Customer:NotificationRecipientType.CorporateAccount,NotificationType.InvoiceGenerated,"Invoice generated",$"Invoice {invoice.InvoiceNumber} has been generated.","invoice-generated",CorrelationId:invoice.Id.ToString()),cancellationToken);await events.PublishAsync(new(BusinessEventTypes.InvoiceCreated,"Invoice",invoice.Id,"{}",invoice.Id.ToString()),cancellationToken);}
         return Results.Json(ToInvoiceDetail(invoice), statusCode: alreadyExists ? StatusCodes.Status200OK : StatusCodes.Status201Created);
     }
 
@@ -99,7 +100,7 @@ public static class BookingEndpoints
         return Results.Ok(detail);
     }
 
-    private static async Task<IResult> CreateBookingAsync(BookingCreateDto request, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, INotificationService notifications, CancellationToken cancellationToken)
+    private static async Task<IResult> CreateBookingAsync(BookingCreateDto request, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, INotificationService notifications,IBusinessEventPublisher events, CancellationToken cancellationToken)
     {
         var now = DateTimeOffset.UtcNow;
         var errors = BookingValidator.Validate(request, now);
@@ -120,6 +121,7 @@ public static class BookingEndpoints
         await audit.WriteAsync("BookingCreated", "Booking", "Succeeded", SecurityEventSeverity.Information, "Booking created.", "Booking", booking.Id.ToString(), company.CompanyId, cancellationToken);
         if (booking.CorporateAccountId.HasValue) await audit.WriteAsync("CorporateAccountAssignedToBooking", "CorporateAccounts", "Succeeded", SecurityEventSeverity.Information, "Corporate account linked to booking.", "Booking", booking.Id.ToString(), company.CompanyId, cancellationToken);
         var recipient=await db.Customers.Where(x=>x.Id==booking.CustomerId&&x.CompanyId==company.CompanyId).Select(x=>x.Email).SingleAsync(cancellationToken);await notifications.QueueAsync(new(recipient,NotificationRecipientType.Customer,NotificationType.BookingCreated,"Booking received",$"Booking {booking.BookingReference} has been created.","booking-created",CorrelationId:booking.Id.ToString()),cancellationToken);
+        await events.PublishAsync(new(BusinessEventTypes.BookingCreated,"Booking",booking.Id,System.Text.Json.JsonSerializer.Serialize(new{booking.BookingReference,booking.TotalFare,booking.PickupDateTime}),booking.Id.ToString()),cancellationToken);
 
         var created = await BookingQuery(db, company.CompanyId).SingleAsync(item => item.Id == booking.Id, cancellationToken);
         return Results.Created($"/api/bookings/{booking.Id}", ToDetail(created));

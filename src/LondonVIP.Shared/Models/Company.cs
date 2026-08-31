@@ -31,4 +31,7 @@ public class Company
     public ICollection<Payment> Payments { get; set; } = [];
     public ICollection<Quotation> Quotations { get; set; } = [];
     public ICollection<Notification> Notifications { get; set; } = [];
+    public ICollection<BusinessEventRecord> BusinessEvents { get; set; } = [];
+    public ICollection<WorkflowJob> WorkflowJobs { get; set; } = [];
+    public ICollection<WorkflowRule> WorkflowRules { get; set; } = [];
 }

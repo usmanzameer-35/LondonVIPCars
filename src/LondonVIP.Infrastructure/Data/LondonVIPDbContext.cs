@@ -39,6 +39,9 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
     public DbSet<PaymentAllocation> PaymentAllocations => Set<PaymentAllocation>();
     public DbSet<Quotation> Quotations => Set<Quotation>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<BusinessEventRecord> BusinessEvents => Set<BusinessEventRecord>();
+    public DbSet<WorkflowJob> WorkflowJobs => Set<WorkflowJob>();
+    public DbSet<WorkflowRule> WorkflowRules => Set<WorkflowRule>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -189,6 +192,21 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
             entity.Property(x=>x.Recipient).HasMaxLength(320);entity.Property(x=>x.Subject).HasMaxLength(300);entity.Property(x=>x.Body).HasMaxLength(4000);entity.Property(x=>x.TemplateName).HasMaxLength(100);entity.Property(x=>x.CorrelationId).HasMaxLength(100);
             entity.HasIndex(x=>new{x.CompanyId,x.Status,x.CreatedAt});entity.HasIndex(x=>new{x.CompanyId,x.Recipient});entity.HasIndex(x=>new{x.CompanyId,x.CorrelationId});
             entity.HasOne(x=>x.Company).WithMany(x=>x.Notifications).HasForeignKey(x=>x.CompanyId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<BusinessEventRecord>(entity=>
+        {
+            entity.Property(x=>x.EventType).HasMaxLength(100);entity.Property(x=>x.ResourceType).HasMaxLength(100);entity.Property(x=>x.PayloadJson).HasMaxLength(8000);entity.Property(x=>x.CorrelationId).HasMaxLength(100);
+            entity.HasIndex(x=>new{x.CompanyId,x.OccurredAt});entity.HasIndex(x=>new{x.CompanyId,x.CorrelationId});entity.HasOne(x=>x.Company).WithMany(x=>x.BusinessEvents).HasForeignKey(x=>x.CompanyId).OnDelete(DeleteBehavior.Restrict);
+        });
+        modelBuilder.Entity<WorkflowJob>(entity=>
+        {
+            entity.Property(x=>x.WorkflowType).HasMaxLength(100);entity.Property(x=>x.PayloadJson).HasMaxLength(8000);entity.Property(x=>x.CorrelationId).HasMaxLength(100);entity.Property(x=>x.LastError).HasMaxLength(2000);entity.Property(x=>x.Recurrence).HasMaxLength(100);
+            entity.HasIndex(x=>new{x.CompanyId,x.Status,x.ScheduledAt});entity.HasIndex(x=>new{x.CompanyId,x.CorrelationId,x.WorkflowType}).IsUnique();entity.HasOne(x=>x.Company).WithMany(x=>x.WorkflowJobs).HasForeignKey(x=>x.CompanyId).OnDelete(DeleteBehavior.Restrict);entity.HasOne(x=>x.BusinessEvent).WithMany().HasForeignKey(x=>x.BusinessEventId).OnDelete(DeleteBehavior.SetNull);
+        });
+        modelBuilder.Entity<WorkflowRule>(entity=>
+        {
+            entity.Property(x=>x.Name).HasMaxLength(150);entity.Property(x=>x.EventType).HasMaxLength(100);entity.Property(x=>x.ConditionField).HasMaxLength(100);entity.Property(x=>x.Operator).HasMaxLength(30);entity.Property(x=>x.ComparisonValue).HasMaxLength(500);entity.Property(x=>x.Action).HasMaxLength(100);
+            entity.HasIndex(x=>new{x.CompanyId,x.EventType,x.IsActive,x.Priority});entity.HasOne(x=>x.Company).WithMany(x=>x.WorkflowRules).HasForeignKey(x=>x.CompanyId).OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<Company>(entity =>

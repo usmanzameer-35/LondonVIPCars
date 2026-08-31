@@ -34,6 +34,7 @@ public static class ErpModuleCatalog
         M("Support & Compliance", "Documents & Compliance", "/erp/documents", "Monitor operational documents and expiry dates.", "Document register", "Expiry alerts", "Compliance status"),
         M("Support & Compliance", "Audit Logs", "/erp/audit-logs", "Review important platform activity and changes.", "Change history", "Actor details", "Exportable records"),
 
+        M("Platform", "Automation", "/erp/automation", "Manage scheduled workflows, business events, reminders and escalations.", "Workflow dashboard", "Scheduled jobs", "Rule engine"),
         M("Platform", "Company Setup", "/erp/company-setup", "Configure the current company's profile, branding and defaults.", "Company profile", "Operational settings", "Branding"),
         M("Platform", "Users & Security", "/erp/users-security", "Prepare access management for a later authentication phase.", "User directory", "Roles", "Access policies"),
         M("Platform", "Integrations", "/erp/integrations", "Configure future external service connections.", "Connection catalogue", "Credentials management", "Health status"),

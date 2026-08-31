@@ -8,6 +8,7 @@ using LondonVIP.Shared.Security;
 using LondonVIP.Infrastructure.Bookings;
 using LondonVIP.Shared.Notifications;
 using LondonVIP.Infrastructure.Dispatch;
+using LondonVIP.Shared.Workflows;
 
 namespace LondonVIP.Api;
 
@@ -65,7 +66,7 @@ public static class DispatchEndpoints
     private static async Task<IResult> GetTimelineAsync(Guid? bookingId,int? limit,IDispatchTimelineService service,IAuditService audit,ICompanyContext company,CancellationToken token){await AuditViewAsync(audit,company,"Timeline",token);return Results.Ok(await service.GetAsync(bookingId,limit??50,token));}
     private static async Task<IResult> GetAlertsAsync(IDispatchDashboardService service,IAuditService audit,ICompanyContext company,CancellationToken token){await AuditViewAsync(audit,company,"Alerts",token);return Results.Ok(await service.GetAlertsAsync(token));}
     private static async Task<IResult> SearchAsync(string? q,int? limit,IDispatchService service,IAuditService audit,ICompanyContext company,CancellationToken token){if(string.IsNullOrWhiteSpace(q))return Results.Ok(Array.Empty<DispatchSearchResultDto>());await AuditViewAsync(audit,company,"Search",token);return Results.Ok(await service.SearchAsync(q,limit??20,token));}
-    private static async Task<IResult> CentreAssignAsync(Guid bookingId,AssignDriverRequest request,IAssignmentEngine engine,LondonVIPDbContext db,ICompanyContext company,IAuditService audit,INotificationService notifications,BookingTransitionService transitions,CancellationToken token){var validation=await engine.ValidateAsync(bookingId,request.DriverId,token);if(!validation.IsValid)return Results.ValidationProblem(validation.Errors);return await AssignDriverAsync(bookingId,request,db,company,audit,notifications,transitions,token);}
+    private static async Task<IResult> CentreAssignAsync(Guid bookingId,AssignDriverRequest request,IAssignmentEngine engine,LondonVIPDbContext db,ICompanyContext company,IAuditService audit,INotificationService notifications,IBusinessEventPublisher events,BookingTransitionService transitions,CancellationToken token){var validation=await engine.ValidateAsync(bookingId,request.DriverId,token);if(!validation.IsValid)return Results.ValidationProblem(validation.Errors);return await AssignDriverAsync(bookingId,request,db,company,audit,notifications,events,transitions,token);}
     private static Task<IResult> CentreUnassignAsync(Guid bookingId,LondonVIPDbContext db,ICompanyContext company,IAuditService audit,INotificationService notifications,CancellationToken token)=>UnassignDriverAsync(bookingId,null,db,company,audit,notifications,token);
     private static Task AuditViewAsync(IAuditService audit,ICompanyContext company,string resource,CancellationToken token)=>audit.WriteAsync("DispatchViewed","Dispatch","Succeeded",SecurityEventSeverity.Information,$"Dispatch {resource} viewed.","DispatchCentre",resource,company.CompanyId,token);
 
@@ -144,6 +145,7 @@ public static class DispatchEndpoints
         ICompanyContext company,
         IAuditService audit,
         INotificationService notifications,
+        IBusinessEventPublisher events,
         BookingTransitionService transitions,
         CancellationToken cancellationToken)
     {
@@ -171,6 +173,7 @@ public static class DispatchEndpoints
         await db.SaveChangesAsync(cancellationToken);
         await audit.WriteAsync(wasAssigned ? "DriverReassigned" : "DriverAssigned", "Dispatch", "Succeeded", SecurityEventSeverity.Information, "Driver assigned to booking.", "Booking", booking.Id.ToString(), company.CompanyId, cancellationToken);
         await notifications.QueueAsync(new(driver.Phone,NotificationRecipientType.Driver,NotificationType.DriverAssigned,"New journey assigned",$"Booking {booking.BookingReference} has been assigned to you.","driver-assigned",NotificationChannel.InternalErp,booking.Id.ToString()),cancellationToken);
+        await events.PublishAsync(new(BusinessEventTypes.BookingAssigned,"Booking",booking.Id,System.Text.Json.JsonSerializer.Serialize(new{booking.BookingReference,DriverId=driver.Id}),booking.Id.ToString()),cancellationToken);
         return Results.Ok(await LoadItemAsync(db, booking.Id, company.CompanyId, cancellationToken));
     }
 

@@ -17,6 +17,8 @@ using LondonVIP.Infrastructure.Dashboard;
 using LondonVIP.Shared.Dashboard;
 using LondonVIP.Infrastructure.Dispatch;
 using LondonVIP.Shared.Dispatch;
+using LondonVIP.Infrastructure.Workflows;
+using LondonVIP.Shared.Workflows;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -127,6 +129,14 @@ public static class Program
         builder.Services.AddScoped<IDispatchTimelineService, DispatchTimelineService>();
         builder.Services.AddScoped<IDriverRecommendationService, DriverRecommendationService>();
         builder.Services.AddScoped<IDispatchDashboardService, DispatchDashboardService>();
+        builder.Services.AddScoped<IBackgroundJobService, BackgroundJobService>();
+        builder.Services.AddScoped<IWorkflowEngine, WorkflowEngine>();
+        builder.Services.AddScoped<IWorkflowScheduler, WorkflowScheduler>();
+        builder.Services.AddScoped<IBusinessEventPublisher, BusinessEventPublisher>();
+        builder.Services.AddScoped<IBusinessEventHandler, BusinessEventHandler>();
+        builder.Services.AddScoped<IRuleEngine, RuleEngine>();
+        builder.Services.AddScoped<IReminderService, ReminderService>();
+        builder.Services.AddScoped<IEscalationService, EscalationService>();
         builder.Services.AddHostedService<IdentityBootstrapper>();
         configureServices?.Invoke(builder.Services);
 
@@ -184,6 +194,7 @@ public static class Program
         app.MapQuotationEndpoints();
         app.MapNotificationEndpoints();
         app.MapDashboardEndpoints();
+        app.MapWorkflowEndpoints();
         app.MapHub<DispatchHub>("/hubs/dispatch").RequireAuthorization(SecurityPolicies.DispatchOperations);
 
         var summaries = new[]
