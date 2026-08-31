@@ -15,6 +15,8 @@ using LondonVIP.Infrastructure.Notifications;
 using LondonVIP.Shared.Notifications;
 using LondonVIP.Infrastructure.Dashboard;
 using LondonVIP.Shared.Dashboard;
+using LondonVIP.Infrastructure.Dispatch;
+using LondonVIP.Shared.Dispatch;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -41,6 +43,7 @@ public static class Program
         });
 
         builder.Services.AddOpenApi();
+        builder.Services.AddSignalR();
         builder.Services.AddProblemDetails();
         builder.Services.AddDataProtection().SetApplicationName("LondonVIPCars")
             .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(Path.GetTempPath(), "LondonVIPCars-DataProtectionKeys")));
@@ -117,6 +120,13 @@ public static class Program
         builder.Services.AddScoped<INotificationProvider, DevelopmentInternalProvider>();
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddScoped<IDashboardService, DashboardService>();
+        builder.Services.AddScoped<IDispatchService, DispatchService>();
+        builder.Services.AddScoped<IDriverAvailabilityService, DriverAvailabilityService>();
+        builder.Services.AddScoped<IConflictDetectionService, ConflictDetectionService>();
+        builder.Services.AddScoped<IAssignmentEngine, AssignmentEngine>();
+        builder.Services.AddScoped<IDispatchTimelineService, DispatchTimelineService>();
+        builder.Services.AddScoped<IDriverRecommendationService, DriverRecommendationService>();
+        builder.Services.AddScoped<IDispatchDashboardService, DispatchDashboardService>();
         builder.Services.AddHostedService<IdentityBootstrapper>();
         configureServices?.Invoke(builder.Services);
 
@@ -174,6 +184,7 @@ public static class Program
         app.MapQuotationEndpoints();
         app.MapNotificationEndpoints();
         app.MapDashboardEndpoints();
+        app.MapHub<DispatchHub>("/hubs/dispatch").RequireAuthorization(SecurityPolicies.DispatchOperations);
 
         var summaries = new[]
         {

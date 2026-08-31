@@ -10,7 +10,7 @@
 
 <div class="dispatch-page">
     <header class="dispatch-heading">
-        <div><span>Operations</span><h1>Dispatch</h1><p>Assign drivers and progress live journeys for London VIP Cars.</p></div>
+        <div><span>Operations</span><h1>Dispatch Centre</h1><p>Live bookings, drivers, timeline and operational alerts.</p></div>
         <button type="button" class="refresh-button" disabled="@Loading" @onclick="LoadAsync">Refresh board</button>
     </header>
 
@@ -24,11 +24,11 @@
     }
     else
     {
+        <nav class="dispatch-tabs"><a href="#driver-board">Driver Board</a><a href="#operations-timeline">Operations Timeline</a><a href="#alerts">Alerts</a><span>Map · Coming Soon</span></nav>
+        <section class="dispatch-tools"><input type="search" placeholder="Search booking, customer, driver, vehicle, invoice or quote" @bind="SearchTerm"/><button @onclick="SearchAsync">Search</button><select @bind="StatusFilter"><option value="">All statuses</option>@foreach(var status in Enum.GetValues<BookingStatus>()){<option value="@status">@Display(status)</option>}</select></section>
+        @if(SearchResults.Count>0){<section class="search-results">@foreach(var result in SearchResults){<a href="@result.Url"><b>@result.Type · @result.Reference</b><span>@result.Title — @result.Subtitle</span></a>}</section>}
         <section class="dispatch-summary" aria-label="Dispatch summary">
-            <div><strong>@Unassigned.Count</strong><span>Unassigned</span></div>
-            <div><strong>@Assigned.Count</strong><span>Assigned</span></div>
-            <div><strong>@ActiveCount</strong><span>Active journeys</span></div>
-            <div><strong>@Drivers.Count</strong><span>Active drivers</span></div>
+            @if(Centre is not null){@foreach(var metric in Metrics(Centre.Kpis)){<div><strong>@metric.Value</strong><span>@metric.Label</span></div>}}
         </section>
 
         <section class="upcoming-section">
@@ -43,21 +43,32 @@
             @BoardColumn("En Route", "Driver travelling to pickup", EnRoute, "active")
             @BoardColumn("Passenger On Board", "Journey in progress", PassengerOnBoard, "active")
         </section>
+        <section class="centre-panels">
+         <article class="centre-panel" id="operations-timeline"><header><h2>Operations Timeline</h2></header>@if(Centre?.Timeline.Count is 0){<p class="empty-line">No dispatch activity recorded.</p>}@foreach(var item in Centre?.Timeline??[]){<div class="timeline-row"><time>@item.Timestamp.LocalDateTime.ToString("HH:mm")</time><div><strong>@DisplayText(item.Action)</strong><span>@item.Description</span></div></div>}</article>
+         <article class="centre-panel" id="driver-board"><header><h2>Driver Board</h2></header>@if(Centre?.Drivers.Count is 0){<p class="empty-line">No drivers found.</p>}@foreach(var driver in Centre?.Drivers??[]){<div class="driver-row"><span class="avatar">@driver.Name[0]</span><div><strong>@driver.Name</strong><small>@(driver.Vehicle??"No vehicle") · @driver.Registration</small><small>@(driver.CurrentBookingReference??"No current booking") · @driver.TodaysJobs jobs today</small></div><b class="driver-status">@driver.CalculatedStatus</b><div class="contact-actions"><a href="tel:@driver.Phone">Call</a><span>SMS</span><span>WhatsApp</span></div></div>}</article>
+         <article class="centre-panel" id="alerts"><header><h2>Operational Alerts</h2></header>@if(Centre?.Alerts.Count is 0){<p class="empty-line">No outstanding alerts.</p>}@foreach(var alert in Centre?.Alerts??[]){<div class="alert-row @alert.Severity.ToLowerInvariant()"><strong>@alert.Title</strong><span>@alert.Detail</span></div>}</article>
+        </section>
     }
 </div>
+<style>.dispatch-tabs,.dispatch-tools{display:flex;gap:.55rem;align-items:center;overflow:auto}.dispatch-tabs a,.dispatch-tabs span{white-space:nowrap;border:1px solid #d9e3df;border-radius:2rem;background:#fff;color:#315f53;padding:.45rem .7rem;font-size:.68rem;text-decoration:none}.dispatch-tools{display:grid;grid-template-columns:1fr auto minmax(10rem,auto);background:#fff;border:1px solid #dfe7e4;border-radius:.8rem;padding:.7rem}.dispatch-tools input,.dispatch-tools select{min-width:0;border:1px solid #bdcac6;border-radius:.45rem;padding:.65rem}.search-results,.centre-panel{background:#fff;border:1px solid #dfe7e4;border-radius:.8rem;padding:.7rem}.search-results a{display:flex;justify-content:space-between;gap:1rem;color:#274d44;padding:.45rem;text-decoration:none}.centre-panels{display:grid;gap:1rem}.centre-panel h2{font:1.15rem Georgia,serif}.timeline-row,.driver-row,.alert-row{display:flex;gap:.65rem;align-items:center;border-top:1px solid #edf1f0;padding:.7rem 0}.timeline-row div,.driver-row>div{min-width:0;flex:1}.timeline-row strong,.timeline-row span,.driver-row strong,.driver-row small,.alert-row strong,.alert-row span{display:block}.timeline-row span,.driver-row small,.alert-row span{color:#71817d;font-size:.65rem}.avatar{width:2rem;height:2rem;display:grid;place-items:center;border-radius:50%;background:#dce9e4}.contact-actions{display:flex!important;gap:.3rem!important;flex:0!important}.contact-actions a,.contact-actions span{border:1px solid #d9e3df;border-radius:.35rem;padding:.3rem;font-size:.58rem}.alert-row{display:block;border-left:3px solid #c79536;padding-left:.65rem}.alert-row.critical{border-left-color:#b8493e}@@media(min-width:800px){.dispatch-summary{grid-template-columns:repeat(5,minmax(0,1fr))}.centre-panels{grid-template-columns:repeat(3,minmax(0,1fr))}}@@media(max-width:600px){.dispatch-tools{grid-template-columns:1fr}}</style>
 
 @code {
     private static readonly System.Globalization.CultureInfo UkCulture = System.Globalization.CultureInfo.GetCultureInfo("en-GB");
     private List<DispatchBoardItemDto> Jobs { get; set; } = [];
     private List<DriverAvailabilityDto> Drivers { get; set; } = [];
+    private DispatchDashboardDto? Centre { get; set; }
+    private List<DispatchSearchResultDto> SearchResults { get; set; } = [];
+    private string SearchTerm { get; set; } = "";
+    private string StatusFilter { get; set; } = "";
     private Dictionary<Guid, Guid> DriverSelections { get; } = [];
     private bool Loading { get; set; } = true;
     private string? Error { get; set; }
     private Guid? BusyBooking { get; set; }
-    private List<DispatchBoardItemDto> Unassigned => Jobs.Where(x => x.Status == BookingStatus.Confirmed && x.DriverId is null).ToList();
-    private List<DispatchBoardItemDto> Assigned => Jobs.Where(x => x.Status == BookingStatus.Assigned).ToList();
-    private List<DispatchBoardItemDto> EnRoute => Jobs.Where(x => x.Status == BookingStatus.DriverEnRoute).ToList();
-    private List<DispatchBoardItemDto> PassengerOnBoard => Jobs.Where(x => x.Status == BookingStatus.PassengerOnBoard).ToList();
+    private IEnumerable<DispatchBoardItemDto> VisibleJobs => Enum.TryParse<BookingStatus>(StatusFilter,out var status)?Jobs.Where(x=>x.Status==status):Jobs;
+    private List<DispatchBoardItemDto> Unassigned => VisibleJobs.Where(x => x.Status == BookingStatus.Confirmed && x.DriverId is null).ToList();
+    private List<DispatchBoardItemDto> Assigned => VisibleJobs.Where(x => x.Status == BookingStatus.Assigned).ToList();
+    private List<DispatchBoardItemDto> EnRoute => VisibleJobs.Where(x => x.Status == BookingStatus.DriverEnRoute).ToList();
+    private List<DispatchBoardItemDto> PassengerOnBoard => VisibleJobs.Where(x => x.Status == BookingStatus.PassengerOnBoard).ToList();
     private int ActiveCount => EnRoute.Count + PassengerOnBoard.Count;
     private List<DispatchBoardItemDto> Upcoming { get { var now = DateTimeOffset.Now; return Jobs.Where(x => x.PickupDateTime >= now && x.PickupDateTime <= now.AddHours(2)).OrderBy(x => x.PickupDateTime).ToList(); } }
 
@@ -70,9 +81,11 @@
         {
             var boardTask = Client().GetFromJsonAsync<List<DispatchBoardItemDto>>("api/dispatch");
             var driversTask = Client().GetFromJsonAsync<List<DriverAvailabilityDto>>("api/dispatch/drivers");
-            await Task.WhenAll(boardTask, driversTask);
+            var centreTask = Client().GetFromJsonAsync<DispatchDashboardDto>("api/dispatch/dashboard");
+            await Task.WhenAll(boardTask, driversTask, centreTask);
             Jobs = boardTask.Result ?? [];
             Drivers = driversTask.Result ?? [];
+            Centre = centreTask.Result;
             foreach (var job in Jobs.Where(x => x.DriverId.HasValue)) DriverSelections[job.BookingId] = job.DriverId!.Value;
         }
         catch (Exception) { Error = "Dispatch data could not be loaded. Make sure LondonVIP.Api is running."; }
@@ -123,6 +136,9 @@
     }
 
     private HttpClient Client() => HttpClientFactory.CreateClient("LondonVIP.Api");
+    private async Task SearchAsync(){if(string.IsNullOrWhiteSpace(SearchTerm)){SearchResults=[];return;}SearchResults=await Client().GetFromJsonAsync<List<DispatchSearchResultDto>>($"api/dispatch/search?q={Uri.EscapeDataString(SearchTerm)}")??[];}
+    private static IEnumerable<(string Label,string Value)> Metrics(DispatchKpiDto x)=>[("Bookings Waiting",x.BookingsWaiting.ToString()),("Assigned",x.Assigned.ToString()),("Drivers Available",x.DriversAvailable.ToString()),("Drivers Busy",x.DriversBusy.ToString()),("Drivers Offline",x.DriversOffline.ToString()),("Airport Jobs Today",x.AirportJobsToday.ToString()),("Corporate Jobs Today",x.CorporateJobsToday.ToString()),("Completed Today",x.CompletedToday.ToString()),("Cancelled Today",x.CancelledToday.ToString()),("Revenue Today",x.RevenueToday.ToString("C",UkCulture)),("Average ETA",x.AverageEtaMinutes?.ToString("0")+" min"??"Not available"),("Average Response",x.AverageResponseMinutes?.ToString("0")+" min"??"Not available"),("Outstanding Alerts",x.OutstandingAlerts.ToString())];
+    private static string DisplayText(string value)=>System.Text.RegularExpressions.Regex.Replace(value,"([a-z])([A-Z])","$1 $2");
     private static BookingStatus? NextStatus(BookingStatus status) => status switch { BookingStatus.Assigned => BookingStatus.DriverEnRoute, BookingStatus.DriverEnRoute => BookingStatus.PassengerOnBoard, BookingStatus.PassengerOnBoard => BookingStatus.Completed, _ => null };
     private static string DriverLabel(DriverAvailabilityDto driver) => string.Join(" · ", new[] { driver.DriverName, driver.VehicleDisplay, driver.RegistrationNumber }.Where(x => !string.IsNullOrWhiteSpace(x)));
     private static string TimingLabel(DispatchBoardItemDto job) => job.TimingState switch { DispatchTimingState.Overdue => "Pickup overdue", DispatchTimingState.Approaching => "Pickup approaching", DispatchTimingState.Active => "Active journey", _ => job.DriverId is null ? "Unassigned" : "Scheduled" };

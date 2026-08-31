@@ -7,6 +7,7 @@ using LondonVIP.Infrastructure.Security;
 using LondonVIP.Shared.Security;
 using LondonVIP.Infrastructure.Bookings;
 using LondonVIP.Shared.Notifications;
+using LondonVIP.Infrastructure.Dispatch;
 
 namespace LondonVIP.Api;
 
@@ -21,6 +22,25 @@ public static class DispatchEndpoints
         group.MapGet("", GetBoardAsync);
         group.MapGet("/unassigned", GetUnassignedAsync);
         group.MapGet("/drivers", GetDriversAsync);
+        group.MapGet("/dashboard", GetCentreDashboardAsync);
+        group.MapGet("/bookings", GetCentreBookingsAsync);
+        group.MapGet("/bookings/{id:guid}", GetCentreBookingAsync);
+        group.MapGet("/bookings/{id:guid}/recommendations", GetRecommendationsAsync);
+        group.MapGet("/timeline", GetTimelineAsync);
+        group.MapGet("/alerts", GetAlertsAsync);
+        group.MapGet("/search", SearchAsync);
+        group.MapPost("/bookings/{bookingId:guid}/assign", CentreAssignAsync);
+        group.MapPost("/bookings/{bookingId:guid}/reassign", CentreAssignAsync);
+        group.MapPost("/bookings/{bookingId:guid}/unassign", CentreUnassignAsync);
+        group.MapPost("/bookings/{bookingId:guid}/accept", AcceptAsync);
+        group.MapPost("/bookings/{bookingId:guid}/decline", RejectAsync);
+        group.MapPost("/bookings/{bookingId:guid}/start", StartNavigationAsync);
+        group.MapPost("/bookings/{bookingId:guid}/arrived", ArriveAsync);
+        group.MapPost("/bookings/{bookingId:guid}/onboard", PassengerOnboardAsync);
+        group.MapPost("/bookings/{bookingId:guid}/complete", CompleteAsync);
+        group.MapPost("/bookings/{bookingId:guid}/cancel", CancelAsync);
+        group.MapPost("/bookings/{bookingId:guid}/noshow", NoShowAsync);
+        group.MapPost("/bookings/{bookingId:guid}/unable", UnableToCompleteAsync);
         group.MapPatch("/{bookingId:guid}/assign", AssignDriverAsync);
         group.MapPatch("/{bookingId:guid}/unassign", UnassignDriverAsync);
         group.MapPatch("/{bookingId:guid}/status", UpdateStatusAsync);
@@ -38,12 +58,24 @@ public static class DispatchEndpoints
         return endpoints;
     }
 
+    private static async Task<IResult> GetCentreDashboardAsync(IDispatchDashboardService service,IAuditService audit,ICompanyContext company,CancellationToken token){await AuditViewAsync(audit,company,"Dashboard",token);return Results.Ok(await service.GetAsync(token));}
+    private static async Task<IResult> GetCentreBookingsAsync([AsParameters] DispatchQuery query,IDispatchService service,IAuditService audit,ICompanyContext company,CancellationToken token){await AuditViewAsync(audit,company,"Bookings",token);return Results.Ok(await service.GetBookingsAsync(query,token));}
+    private static async Task<IResult> GetCentreBookingAsync(Guid id,IDispatchService service,IAuditService audit,ICompanyContext company,CancellationToken token){var result=await service.GetBookingAsync(id,token);if(result is null)return Results.NotFound();await AuditViewAsync(audit,company,"BookingDetail",token);return Results.Ok(result);}
+    private static async Task<IResult> GetRecommendationsAsync(Guid id,IDriverRecommendationService service,IAuditService audit,ICompanyContext company,CancellationToken token){await AuditViewAsync(audit,company,"DriverRecommendations",token);return Results.Ok(await service.RecommendAsync(id,token));}
+    private static async Task<IResult> GetTimelineAsync(Guid? bookingId,int? limit,IDispatchTimelineService service,IAuditService audit,ICompanyContext company,CancellationToken token){await AuditViewAsync(audit,company,"Timeline",token);return Results.Ok(await service.GetAsync(bookingId,limit??50,token));}
+    private static async Task<IResult> GetAlertsAsync(IDispatchDashboardService service,IAuditService audit,ICompanyContext company,CancellationToken token){await AuditViewAsync(audit,company,"Alerts",token);return Results.Ok(await service.GetAlertsAsync(token));}
+    private static async Task<IResult> SearchAsync(string? q,int? limit,IDispatchService service,IAuditService audit,ICompanyContext company,CancellationToken token){if(string.IsNullOrWhiteSpace(q))return Results.Ok(Array.Empty<DispatchSearchResultDto>());await AuditViewAsync(audit,company,"Search",token);return Results.Ok(await service.SearchAsync(q,limit??20,token));}
+    private static async Task<IResult> CentreAssignAsync(Guid bookingId,AssignDriverRequest request,IAssignmentEngine engine,LondonVIPDbContext db,ICompanyContext company,IAuditService audit,INotificationService notifications,BookingTransitionService transitions,CancellationToken token){var validation=await engine.ValidateAsync(bookingId,request.DriverId,token);if(!validation.IsValid)return Results.ValidationProblem(validation.Errors);return await AssignDriverAsync(bookingId,request,db,company,audit,notifications,transitions,token);}
+    private static Task<IResult> CentreUnassignAsync(Guid bookingId,LondonVIPDbContext db,ICompanyContext company,IAuditService audit,INotificationService notifications,CancellationToken token)=>UnassignDriverAsync(bookingId,null,db,company,audit,notifications,token);
+    private static Task AuditViewAsync(IAuditService audit,ICompanyContext company,string resource,CancellationToken token)=>audit.WriteAsync("DispatchViewed","Dispatch","Succeeded",SecurityEventSeverity.Information,$"Dispatch {resource} viewed.","DispatchCentre",resource,company.CompanyId,token);
+
     private static Task<IResult> StartNavigationAsync(Guid bookingId, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, BookingTransitionService transitions,INotificationService n,CancellationToken ct) => ApplyTransitionAsync(bookingId, BookingStatus.DriverEnRoute, "DriverNavigationStarted", db, company, audit, transitions,n,ct);
     private static Task<IResult> ArriveAsync(Guid bookingId, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, BookingTransitionService transitions,INotificationService n,CancellationToken ct) => ApplyTransitionAsync(bookingId, BookingStatus.DriverArrived, "DriverArrived", db, company, audit, transitions,n,ct);
     private static Task<IResult> PassengerOnboardAsync(Guid bookingId, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, BookingTransitionService transitions,INotificationService n,CancellationToken ct) => ApplyTransitionAsync(bookingId, BookingStatus.PassengerOnBoard, "PassengerOnBoard", db, company, audit, transitions,n,ct);
     private static Task<IResult> CompleteAsync(Guid bookingId, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, BookingTransitionService transitions,INotificationService n,CancellationToken ct) => ApplyTransitionAsync(bookingId, BookingStatus.Completed, "BookingCompleted", db, company, audit, transitions,n,ct);
     private static Task<IResult> NoShowAsync(Guid bookingId, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, BookingTransitionService transitions,INotificationService n,CancellationToken ct) => ApplyTransitionAsync(bookingId, BookingStatus.NoShow, "BookingMarkedNoShow", db, company, audit, transitions,n,ct);
     private static Task<IResult> UnableToCompleteAsync(Guid bookingId, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, BookingTransitionService transitions,INotificationService n,CancellationToken ct) => ApplyTransitionAsync(bookingId, BookingStatus.UnableToComplete, "BookingUnableToComplete", db, company, audit, transitions,n,ct);
+    private static Task<IResult> CancelAsync(Guid bookingId, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, BookingTransitionService transitions,INotificationService n,CancellationToken ct) => ApplyTransitionAsync(bookingId, BookingStatus.Cancelled, "BookingCancelled", db, company, audit, transitions,n,ct);
 
     private static async Task<IResult> ApplyTransitionAsync(Guid bookingId, BookingStatus next, string eventType, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, BookingTransitionService transitions,INotificationService notifications,CancellationToken ct)
     {

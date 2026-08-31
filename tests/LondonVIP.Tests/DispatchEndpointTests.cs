@@ -13,6 +13,44 @@ namespace LondonVIP.Tests;
 public class DispatchEndpointTests
 {
     [Fact]
+    public async Task DispatchCentre_DashboardSearchFilteringAndAuditUseTenantData()
+    {
+        await WithDispatchDataAsync(async (host, data) =>
+        {
+            var dashboard = await host.Client.GetFromJsonAsync<DispatchDashboardDto>("/api/dispatch/dashboard");
+            Assert.NotNull(dashboard); Assert.Equal(1, dashboard.Kpis.BookingsWaiting); Assert.Contains(dashboard.WaitingBookings, x => x.BookingId == data.Booking.Id);
+            var page = await host.Client.GetFromJsonAsync<DispatchPageDto<DispatchBoardItemDto>>("/api/dispatch/bookings?status=Confirmed&page=1&pageSize=10");
+            Assert.NotNull(page); Assert.Equal(1, page.Total); Assert.Single(page.Items);
+            var search = await host.Client.GetFromJsonAsync<List<DispatchSearchResultDto>>($"/api/dispatch/search?q={data.Booking.BookingReference}");
+            Assert.Contains(search!, x => x.Type == "Booking" && x.Id == data.Booking.Id);
+            await using var scope=host.App.Services.CreateAsyncScope();var db=scope.ServiceProvider.GetRequiredService<LondonVIPDbContext>();
+            Assert.Contains(db.SecurityAuditEvents,x=>x.EventType=="DispatchViewed"&&x.CompanyId==data.CompanyId);
+        });
+    }
+
+    [Fact]
+    public async Task StrictAssignmentDetectsConflictAndRecommendationsExcludeOccupiedDriver()
+    {
+        await WithDispatchDataAsync(async (host, data) =>
+        {
+            await AddBookingAsync(host,data,BookingStatus.Assigned,data.ActiveDriver.Id);
+            using var response=await host.Client.PostAsJsonAsync($"/api/dispatch/bookings/{data.Booking.Id}/assign",new AssignDriverRequest{DriverId=data.ActiveDriver.Id});
+            Assert.Equal(HttpStatusCode.BadRequest,response.StatusCode);
+            var recommendations=await host.Client.GetFromJsonAsync<List<DriverRecommendationDto>>($"/api/dispatch/bookings/{data.Booking.Id}/recommendations");
+            Assert.DoesNotContain(recommendations!,x=>x.DriverId==data.ActiveDriver.Id);
+        });
+    }
+
+    [Fact]
+    public async Task DispatchCentre_IsTenantSafeAuthorizedAndHandlesEmptyDatabase()
+    {
+        await using var host=await TestApiHost.StartAsync();
+        var dashboard=await host.Client.GetFromJsonAsync<DispatchDashboardDto>("/api/dispatch/dashboard");Assert.NotNull(dashboard);Assert.Equal(0,dashboard.Kpis.BookingsWaiting);
+        using var request=new HttpRequestMessage(HttpMethod.Get,"/api/dispatch/dashboard");request.Headers.Add("X-Test-Anonymous","true");Assert.Equal(HttpStatusCode.Unauthorized,(await host.Client.SendAsync(request)).StatusCode);
+        var other=await AddOtherTenantAsync(host);Assert.Equal(HttpStatusCode.NotFound,(await host.Client.GetAsync($"/api/dispatch/bookings/{other.Booking.Id}")).StatusCode);
+    }
+
+    [Fact]
     public async Task DispatchList_ReturnsOnlyCurrentTenantOperationalBookings()
     {
         await WithDispatchDataAsync(async (host, data) =>
@@ -235,7 +273,7 @@ public class DispatchEndpointTests
 
     private static Customer NewCustomer(Guid companyId, string name) => new() { Id = Guid.NewGuid(), CompanyId = companyId, FirstName = name, LastName = "Passenger", Email = $"{Guid.NewGuid():N}@example.test", Phone = "000", CreatedAt = DateTimeOffset.UtcNow, IsActive = true };
     private static Vehicle NewVehicle(Guid companyId, string registration) => new() { Id = Guid.NewGuid(), CompanyId = companyId, RegistrationNumber = registration, Make = "Mercedes", Model = "E-Class", VehicleType = VehicleType.Saloon, PassengerCapacity = 4, LuggageCapacity = 2, IsActive = true };
-    private static Driver NewDriver(Guid companyId, bool active, Guid? vehicleId, string name) => new() { Id = Guid.NewGuid(), CompanyId = companyId, FirstName = name, LastName = "Driver", Email = $"{Guid.NewGuid():N}@example.test", Phone = "000", VehicleId = vehicleId, IsActive = active };
+    private static Driver NewDriver(Guid companyId, bool active, Guid? vehicleId, string name) => new() { Id = Guid.NewGuid(), CompanyId = companyId, FirstName = name, LastName = "Driver", Email = $"{Guid.NewGuid():N}@example.test", Phone = "000", VehicleId = vehicleId, IsActive = active, AvailabilityStatus = active ? DriverAvailabilityStatus.Available : DriverAvailabilityStatus.Offline };
     private static Booking NewBooking(Guid companyId, Guid customerId, BookingStatus status, Guid? driverId = null) => new() { Id = Guid.NewGuid(), BookingReference = $"LVC-{Guid.NewGuid():N}"[..20], CompanyId = companyId, CustomerId = customerId, PickupAddress = "Heathrow Terminal 5", Destination = "Mayfair", PickupDateTime = DateTimeOffset.UtcNow.AddMinutes(45), PassengerCount = 2, LuggageCount = 2, VehicleType = VehicleType.Saloon, BaseFare = 50m, Extras = 10m, TotalFare = 60m, DriverId = driverId, Status = status, PaymentStatus = "Pending", CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow };
 
     private static Task<HttpResponseMessage> PatchAsync<T>(HttpClient client, string uri, T body) => client.SendAsync(new HttpRequestMessage(HttpMethod.Patch, uri) { Content = JsonContent.Create(body) });
