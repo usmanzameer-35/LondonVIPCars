@@ -22,6 +22,8 @@ using LondonVIP.Shared.Workflows;
 using LondonVIP.Infrastructure.Maps;
 using LondonVIP.Infrastructure.Integrations;
 using LondonVIP.Shared.Integrations;
+using LondonVIP.Infrastructure.Crm;
+using LondonVIP.Shared.Crm;
 using LondonVIP.Shared.Maps;
 using LondonVIP.Infrastructure.Drivers;
 using LondonVIP.Shared.Drivers;
@@ -104,6 +106,7 @@ public static class Program
             .AddPolicy(SecurityPolicies.CorporateAccountsFinancialWrite, policy => policy.RequireRole(SecurityRoles.SuperAdmin, SecurityRoles.Admin, SecurityRoles.Finance))
             .AddPolicy(SecurityPolicies.CompanyAdministration, policy => policy.RequireRole(SecurityRoles.SuperAdmin, SecurityRoles.Admin))
             .AddPolicy(SecurityPolicies.PlatformAdministration, policy => policy.RequireRole(SecurityRoles.SuperAdmin));
+        builder.Services.AddAuthorizationBuilder().AddPolicy(SecurityPolicies.CrmRead,policy=>policy.RequireRole(SecurityRoles.SuperAdmin,SecurityRoles.Admin,SecurityRoles.Dispatcher,SecurityRoles.Finance)).AddPolicy(SecurityPolicies.CrmWrite,policy=>policy.RequireRole(SecurityRoles.SuperAdmin,SecurityRoles.Admin,SecurityRoles.Dispatcher));
         builder.Services.AddAuthorizationBuilder().AddPolicy(SecurityPolicies.DriverPortal, policy => policy.RequireRole(SecurityRoles.Driver)).AddPolicy(SecurityPolicies.CustomerPortal, policy => policy.RequireRole(SecurityRoles.Customer));
         builder.Services.AddRateLimiter(options =>
         {
@@ -194,6 +197,7 @@ public static class Program
         builder.Services.AddScoped<IIntegrationPaymentProvider>(sp => sp.GetRequiredService<StripePaymentProvider>());
         builder.Services.AddScoped<IPaymentLifecycleProvider>(sp => sp.GetRequiredService<StripePaymentProvider>());
         builder.Services.AddScoped<IPaymentGateway, StripeCustomerPaymentGateway>();
+        builder.Services.AddScoped<ICrmService, CrmService>();
         builder.Services.AddScoped<IGeocodingProvider>(sp => sp.GetRequiredService<GoogleMapsPlatformProvider>());
         builder.Services.AddScoped<IRoutingProvider>(sp => sp.GetRequiredService<GoogleMapsPlatformProvider>());
         builder.Services.AddScoped<IDistanceMatrixProvider>(sp => sp.GetRequiredService<GoogleMapsPlatformProvider>());
@@ -276,6 +280,7 @@ public static class Program
         app.MapDriverPortalEndpoints();
         app.MapCustomerPlatformEndpoints();
         app.MapIntegrationEndpoints();
+        app.MapCrmEndpoints();
         app.MapHub<DispatchHub>("/hubs/dispatch").RequireAuthorization(SecurityPolicies.DispatchOperations);
         app.MapHub<JourneyHub>("/hubs/journeys").RequireAuthorization(SecurityPolicies.ErpAccess);
 

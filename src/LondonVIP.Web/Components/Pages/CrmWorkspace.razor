@@ -1,0 +1,35 @@
+@page "/erp/crm"
+@page "/erp/leads"
+@page "/erp/opportunities"
+@page "/erp/sales-pipeline"
+@page "/erp/crm/schools"
+@page "/erp/crm/hotels"
+@page "/erp/crm/nhs"
+@page "/erp/crm/travel-agents"
+@page "/erp/crm/law-firms"
+@page "/erp/crm/account-managers"
+@page "/erp/crm/tasks"
+@page "/erp/crm/calendar"
+@page "/erp/crm/activities"
+@page "/erp/crm/documents"
+@page "/erp/crm/notes"
+@page "/erp/campaigns"
+@page "/erp/reviews"
+@page "/erp/crm/reports"
+@attribute [Authorize]
+@layout AdminLayout
+@rendermode InteractiveServer
+@using LondonVIP.Shared.Crm
+@using LondonVIP.Shared.Models
+@inject IHttpClientFactory HttpClientFactory
+@inject NavigationManager Navigation
+<PageTitle>CRM | London VIP Cars ERP</PageTitle>
+<div class="crm"><header><div><span>Customer relationships</span><h1>@Title</h1><p>Tenant-scoped live CRM data. Empty states indicate that no records exist.</p></div><button @onclick="Load">Refresh</button></header>
+@if(Loading){<p class="state">Loading CRM data…</p>}else if(Error is not null){<p class="state error">@Error</p>}else{
+<section class="metrics"><article><strong>@Dashboard?.OpenLeads</strong><span>Open leads</span></article><article><strong>@Dashboard?.Opportunities</strong><span>Opportunities</span></article><article><strong>@((Dashboard?.ForecastRevenue??0).ToString("C"))</strong><span>Forecast</span></article><article><strong>@Dashboard?.UnreadConversations</strong><span>Unread conversations</span></article><article><strong>@Dashboard?.OverdueTasks</strong><span>Overdue tasks</span></article><article><strong>@Dashboard?.OpenComplaints</strong><span>Open complaints</span></article></section>
+<section class="toolbar"><input type="search" placeholder="Search CRM" @bind="Search" @bind:event="oninput"/><a href="/erp/communications">Open unified inbox</a></section>
+@if(IsPipeline){<section class="pipeline">@foreach(var group in Opportunities.Where(Matches).GroupBy(x=>x.Stage)){<article><h2>@group.Key</h2>@foreach(var item in group){<div class="card"><strong>@item.Name</strong><span>@item.Value.ToString("C") · @item.Probability%</span><small>Forecast @item.ForecastValue.ToString("C")</small></div>}</article>}@if(Opportunities.Count==0){<p class="state">No opportunities have been created.</p>}</section>}
+else{<section class="list">@foreach(var lead in Leads.Where(Matches)){<article><div><strong>@lead.Name</strong><span>@lead.Reference · @lead.Source · @lead.Status</span></div><span class="pill">@lead.Priority</span><small>@lead.Email @lead.Phone</small><strong>@lead.ExpectedRevenue.ToString("C")</strong></article>}@if(Leads.Count==0){<p class="state">No CRM records are available for this view.</p>}</section>}}
+</div>
+<style>.crm{display:grid;gap:1rem}.crm>header,.toolbar,.list article{display:flex;align-items:center;justify-content:space-between;gap:1rem}.crm h1{font:clamp(2rem,4vw,3rem) Georgia,serif;margin:.2rem 0}.crm header span{color:#986b26;text-transform:uppercase;font-size:.7rem}.crm button,.toolbar a{border:1px solid #bfd0ca;background:#fff;border-radius:.55rem;padding:.6rem .8rem;color:#17473e}.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:.6rem}.metrics article,.list,.pipeline article,.state,.toolbar{background:#fff;border:1px solid #dfe7e4;border-radius:.8rem;padding:1rem}.metrics strong,.metrics span,.list strong,.list span,.list small,.card>*{display:block}.metrics strong{font:1.5rem Georgia,serif}.metrics span,.list span,.list small,.card span,.card small{font-size:.72rem;color:#71817d}.toolbar input{border:1px solid #c8d5d1;border-radius:.45rem;padding:.65rem;min-width:18rem}.pipeline{display:grid;gap:.7rem;overflow:auto}.pipeline article{min-width:15rem}.card{border-top:1px solid #edf1ef;padding:.7rem 0}.list article{border-bottom:1px solid #edf1ef;border-radius:0}.pill{background:#edf5f2;border-radius:2rem;padding:.3rem .55rem}.error{color:#991b1b}@@media(min-width:800px){.metrics{grid-template-columns:repeat(6,1fr)}.pipeline{grid-auto-flow:column;grid-auto-columns:minmax(16rem,1fr)}}@@media(max-width:650px){.crm>header,.toolbar,.list article{align-items:flex-start;flex-direction:column}.toolbar input{width:100%;min-width:0}}</style>
+@code{CrmDashboardDto? Dashboard;List<CrmLeadDto> Leads=[];List<OpportunityDto> Opportunities=[];bool Loading=true;string? Error;string Search="";string Path=>"/"+Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].Trim('/');bool IsPipeline=>Path.Contains("opportun",StringComparison.OrdinalIgnoreCase)||Path.Contains("pipeline",StringComparison.OrdinalIgnoreCase);string Title=>Path switch{"/erp/crm"=>"CRM Dashboard","/erp/leads"=>"Leads","/erp/opportunities"=>"Opportunities","/erp/sales-pipeline"=>"Sales Pipeline",_=>Path.Split('/').Last().Replace('-',' ').ToUpperInvariant()};protected override Task OnInitializedAsync()=>Load();async Task Load(){Loading=true;try{var c=HttpClientFactory.CreateClient("LondonVIP.Api");var d=c.GetFromJsonAsync<CrmDashboardDto>("api/crm/dashboard");var l=c.GetFromJsonAsync<List<CrmLeadDto>>("api/crm/leads");var p=c.GetFromJsonAsync<List<OpportunityDto>>("api/crm/pipeline");await Task.WhenAll(d,l,p);Dashboard=d.Result;Leads=l.Result??[];Opportunities=p.Result??[];}catch(Exception){Error="CRM data could not be loaded.";}finally{Loading=false;}}bool Matches(CrmLeadDto x)=>string.IsNullOrWhiteSpace(Search)||$"{x.Reference} {x.Name} {x.Email} {x.Phone} {x.Source}".Contains(Search,StringComparison.OrdinalIgnoreCase);bool Matches(OpportunityDto x)=>string.IsNullOrWhiteSpace(Search)||$"{x.Name} {x.Stage}".Contains(Search,StringComparison.OrdinalIgnoreCase);}

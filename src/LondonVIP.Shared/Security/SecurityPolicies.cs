@@ -20,4 +20,6 @@ public static class SecurityPolicies
     public const string PlatformAdministration = nameof(PlatformAdministration);
     public const string DriverPortal = nameof(DriverPortal);
     public const string CustomerPortal = nameof(CustomerPortal);
+    public const string CrmRead = nameof(CrmRead);
+    public const string CrmWrite = nameof(CrmWrite);
 }

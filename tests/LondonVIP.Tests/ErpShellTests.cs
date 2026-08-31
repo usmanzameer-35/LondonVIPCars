@@ -15,10 +15,12 @@ public class ErpShellTests
     [Fact]
     public void ModuleCatalog_ContainsUniqueRoutesAndCompanySetupLink()
     {
-        Assert.Equal(32, ErpModuleCatalog.All.Count);
+        Assert.True(ErpModuleCatalog.All.Count >= 49);
         Assert.Equal(ErpModuleCatalog.All.Count, ErpModuleCatalog.All.Select(item => item.Route).Distinct(StringComparer.OrdinalIgnoreCase).Count());
         Assert.Contains(ErpModuleCatalog.All, item => item.Route == "/erp/company-setup" && item.Title == "Company Setup");
-        Assert.Contains(ErpModuleCatalog.All, item => item.Title == "Leads & CRM");
+        Assert.Contains(ErpModuleCatalog.All, item => item.Route == "/erp/crm" && item.Title == "Dashboard");
+        Assert.Contains(ErpModuleCatalog.All, item => item.Route == "/erp/leads" && item.Title == "Leads");
+        Assert.Contains(ErpModuleCatalog.All, item => item.Route == "/erp/sales-pipeline");
         Assert.Contains(ErpModuleCatalog.All, item => item.Title == "Live Journey Intelligence");
         Assert.Contains(ErpModuleCatalog.All, item => item.Route == "/erp/map" && item.Title == "Maps");
         Assert.Contains(ErpModuleCatalog.All, item => item.Route == "/erp/live-tracking");
@@ -66,7 +68,7 @@ public class ErpShellTests
     [InlineData("/erp/drivers", "Drivers", "Manage operational availability")]
     [InlineData("/erp/driver-dashboard", "Driver Dashboard", "Current Job")]
     [InlineData("/erp/fleet", "Fleet", "Maintain company vehicles")]
-    [InlineData("/erp/leads", "Leads &amp; CRM", "Conversion reporting")]
+    [InlineData("/erp/leads", "Leads", "Tenant-scoped live CRM data")]
     [InlineData("/erp/website-cms", "Website / CMS", "Homepage management")]
     [InlineData("/erp/insights", "Insights / Travel Hub", "TfL / TPH updates")]
     [InlineData("/erp/journey-intelligence", "Live Journey Intelligence", "Journey-risk alerts")]
