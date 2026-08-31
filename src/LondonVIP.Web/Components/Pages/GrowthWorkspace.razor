@@ -1,0 +1,37 @@
+@page "/erp/marketing"
+@page "/erp/promotions"
+@page "/erp/referrals"
+@page "/erp/loyalty"
+@page "/erp/campaigns"
+@page "/erp/newsletters"
+@page "/erp/content"
+@page "/erp/blog"
+@page "/erp/seo"
+@page "/erp/social"
+@page "/erp/media"
+@page "/erp/analytics"
+@attribute [Authorize(Roles="Dispatcher,Finance,Admin,SuperAdmin")]
+@layout AdminLayout
+@rendermode InteractiveServer
+@using System.Text.Json
+@using LondonVIP.Shared.Growth
+@inject IHttpClientFactory Clients
+@inject NavigationManager Navigation
+
+<PageTitle>@Title | London VIP Cars ERP</PageTitle>
+<main class="growth-page">
+ <header><div><span>Sales, marketing &amp; growth</span><h1>@Title</h1><p>Tenant-scoped acquisition, retention and digital performance.</p></div><button @onclick="Load">Refresh</button></header>
+ @if(Loading){<p class="state">Loading live growth data…</p>}else if(Error is not null){<p class="state error" role="alert">@Error</p>}else{
+  <section class="growth-kpis"><article><span>Active promotions</span><strong>@Dashboard?.ActivePromotions</strong></article><article><span>Loyalty members</span><strong>@Dashboard?.LoyaltyMembers</strong></article><article><span>Subscribers</span><strong>@Dashboard?.Subscribers</strong></article><article><span>Captured leads</span><strong>@Dashboard?.CapturedLeads</strong></article><article><span>Campaign revenue</span><strong>@Dashboard?.CampaignRevenue.ToString("C")</strong></article></section>
+  <nav class="growth-tabs" aria-label="Growth modules">@foreach(var item in Modules){<a class="@(Path==item.Route?"active":null)" href="@item.Route">@item.Label</a>}</nav>
+  <section class="growth-list"><div class="list-title"><h2>@Title records</h2><span>@Rows.Count live records</span></div>@if(Rows.Count==0){<p class="state">No records have been created for this tenant.</p>}else{@foreach(var row in Rows){<article><pre>@Pretty(row)</pre></article>}}</section>
+ }
+</main>
+<style>.growth-page{display:grid;gap:1.2rem;color:#173f36}.growth-page>header{display:flex;justify-content:space-between;gap:1rem;align-items:end}.growth-page header span{text-transform:uppercase;letter-spacing:.12em;color:#987334;font-size:.72rem}.growth-page h1{margin:.25rem 0;font:2.2rem Georgia,serif}.growth-page button{border:0;border-radius:.6rem;padding:.75rem 1rem;background:#173f36;color:#fff}.growth-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:.75rem}.growth-kpis article,.growth-list{background:#fff;border:1px solid #dce5e2;border-radius:.9rem;padding:1rem}.growth-kpis span{display:block;color:#647872;font-size:.75rem}.growth-kpis strong{font-size:1.5rem}.growth-tabs{display:flex;gap:.4rem;overflow:auto;padding-bottom:.25rem}.growth-tabs a{white-space:nowrap;padding:.55rem .8rem;border-radius:2rem;background:#e8efec;color:#173f36;text-decoration:none;font-size:.78rem}.growth-tabs a.active{background:#173f36;color:#fff}.list-title{display:flex;justify-content:space-between;align-items:center}.growth-list article{padding:.8rem;border-top:1px solid #edf1ef}.growth-list pre{white-space:pre-wrap;font:12px/1.5 system-ui;color:#425b53}.state{padding:2rem;text-align:center;color:#647872}.error{color:#9a302c}@@media(max-width:900px){.growth-kpis{grid-template-columns:repeat(2,1fr)}}@@media(max-width:560px){.growth-page>header{align-items:start;flex-direction:column}.growth-kpis{grid-template-columns:1fr}}</style>
+@code{
+ static readonly (string Label,string Route)[] Modules=[("Overview","/erp/marketing"),("Promotions","/erp/promotions"),("Referrals","/erp/referrals"),("Loyalty","/erp/loyalty"),("Reviews","/erp/reviews"),("Campaigns","/erp/campaigns"),("Newsletters","/erp/newsletters"),("Content","/erp/content"),("Blog","/erp/blog"),("SEO","/erp/seo"),("Social","/erp/social"),("Media","/erp/media"),("Analytics","/erp/analytics")];
+ GrowthDashboardDto? Dashboard;List<JsonElement> Rows=[];bool Loading=true;string? Error;string Path=>"/"+Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].Trim('/');string Title=>Modules.FirstOrDefault(x=>x.Route==Path).Label??"Growth";
+ protected override Task OnInitializedAsync()=>Load();
+ async Task Load(){Loading=true;Error=null;try{var client=Clients.CreateClient("LondonVIP.Api");Dashboard=await client.GetFromJsonAsync<GrowthDashboardDto>("api/growth/dashboard");var endpoint=Path switch{"/erp/promotions"=>"promotions","/erp/referrals"=>"referrals","/erp/loyalty"=>"loyalty/00000000-0000-0000-0000-000000000000","/erp/reviews"=>null,"/erp/campaigns"=>"campaigns","/erp/newsletters"=>"newsletters","/erp/content"=>"content","/erp/blog"=>"blog","/erp/seo"=>"seo/redirects","/erp/social"=>"social","/erp/media"=>"media","/erp/analytics"=>null,_=>"leads"};Rows=endpoint is null?[]:await client.GetFromJsonAsync<List<JsonElement>>($"api/growth/{endpoint}")??[];}catch(Exception){Error="Growth data could not be loaded.";}finally{Loading=false;}}
+ static string Pretty(JsonElement value)=>JsonSerializer.Serialize(value,new JsonSerializerOptions{WriteIndented=true});
+}

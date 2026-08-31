@@ -36,6 +36,18 @@ public static class ErpModuleCatalog
         M("CRM", "CRM Reports", "/erp/crm/reports", "Review sales and customer performance.", "Conversion", "Revenue by source", "Lifetime value"),
         M("CRM", "Communications", "/erp/communications", "Prepare operational and customer message templates.", "Message templates", "Delivery history", "Service notices"),
 
+        M("Growth", "Marketing Overview", "/erp/marketing", "Measure acquisition, retention and campaign performance.", "Growth KPIs", "Campaign ROI", "Lead sources"),
+        M("Growth", "Promotions", "/erp/promotions", "Manage eligible, scheduled and usage-limited offers.", "Promo codes", "Eligibility", "Redemptions"),
+        M("Growth", "Referrals", "/erp/referrals", "Track customer, driver and corporate referrals.", "Referral codes", "Qualification", "Rewards"),
+        M("Growth", "Loyalty", "/erp/loyalty", "Operate points, tiers and reward history.", "Points ledger", "Tiers", "Vouchers"),
+        M("Growth", "Newsletters", "/erp/newsletters", "Manage consented subscribers, lists and segments.", "Double opt-in", "Segmentation", "Unsubscribe"),
+        M("Growth", "Content", "/erp/content", "Manage reusable website pages and SEO metadata.", "Content blocks", "Publishing", "Landing pages"),
+        M("Growth", "Blog", "/erp/blog", "Publish scheduled, searchable travel content.", "Articles", "Categories", "SEO"),
+        M("Growth", "SEO", "/erp/seo", "Manage redirects and search visibility controls.", "Metadata", "Redirects", "Health"),
+        M("Growth", "Social", "/erp/social", "Coordinate provider-neutral social publishing.", "Drafts", "Scheduling", "Engagement"),
+        M("Growth", "Media", "/erp/media", "Catalog versioned marketing and website assets.", "Folders", "Tags", "Versions"),
+        M("Growth", "Analytics", "/erp/analytics", "Review growth and conversion performance.", "Acquisition", "Revenue", "ROI"),
+
         M("Fleet & Drivers", "Drivers", "/erp/drivers", "Manage the active driver network and availability.", "Driver directory", "Availability", "Performance overview"),
         M("Fleet & Drivers", "Driver Dashboard", "/erp/driver-dashboard", "Operate a driver's current and upcoming workload.", "Current job", "Quick actions", "Daily workload"),
         M("Fleet & Drivers", "Fleet", "/erp/fleet", "Maintain vehicles, capacity and operating status.", "Vehicle register", "Capacity", "Maintenance status"),

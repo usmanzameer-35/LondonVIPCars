@@ -29,6 +29,8 @@ using LondonVIP.Infrastructure.Drivers;
 using LondonVIP.Shared.Drivers;
 using LondonVIP.Infrastructure.Customers;
 using LondonVIP.Shared.CustomerPortal;
+using LondonVIP.Infrastructure.Growth;
+using LondonVIP.Shared.Growth;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -198,6 +200,9 @@ public static class Program
         builder.Services.AddScoped<IPaymentLifecycleProvider>(sp => sp.GetRequiredService<StripePaymentProvider>());
         builder.Services.AddScoped<IPaymentGateway, StripeCustomerPaymentGateway>();
         builder.Services.AddScoped<ICrmService, CrmService>();
+        builder.Services.AddScoped<IPromotionEngine, PromotionEngine>();
+        builder.Services.AddScoped<IReferralService, ReferralService>();
+        builder.Services.AddScoped<ILoyaltyService, LoyaltyService>();
         builder.Services.AddScoped<IGeocodingProvider>(sp => sp.GetRequiredService<GoogleMapsPlatformProvider>());
         builder.Services.AddScoped<IRoutingProvider>(sp => sp.GetRequiredService<GoogleMapsPlatformProvider>());
         builder.Services.AddScoped<IDistanceMatrixProvider>(sp => sp.GetRequiredService<GoogleMapsPlatformProvider>());
@@ -281,6 +286,7 @@ public static class Program
         app.MapCustomerPlatformEndpoints();
         app.MapIntegrationEndpoints();
         app.MapCrmEndpoints();
+        app.MapGrowthEndpoints();
         app.MapHub<DispatchHub>("/hubs/dispatch").RequireAuthorization(SecurityPolicies.DispatchOperations);
         app.MapHub<JourneyHub>("/hubs/journeys").RequireAuthorization(SecurityPolicies.ErpAccess);
 
