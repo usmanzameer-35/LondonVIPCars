@@ -23,6 +23,8 @@ using LondonVIP.Infrastructure.Maps;
 using LondonVIP.Shared.Maps;
 using LondonVIP.Infrastructure.Drivers;
 using LondonVIP.Shared.Drivers;
+using LondonVIP.Infrastructure.Customers;
+using LondonVIP.Shared.CustomerPortal;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -100,7 +102,7 @@ public static class Program
             .AddPolicy(SecurityPolicies.CorporateAccountsFinancialWrite, policy => policy.RequireRole(SecurityRoles.SuperAdmin, SecurityRoles.Admin, SecurityRoles.Finance))
             .AddPolicy(SecurityPolicies.CompanyAdministration, policy => policy.RequireRole(SecurityRoles.SuperAdmin, SecurityRoles.Admin))
             .AddPolicy(SecurityPolicies.PlatformAdministration, policy => policy.RequireRole(SecurityRoles.SuperAdmin));
-        builder.Services.AddAuthorizationBuilder().AddPolicy(SecurityPolicies.DriverPortal, policy => policy.RequireRole(SecurityRoles.Driver));
+        builder.Services.AddAuthorizationBuilder().AddPolicy(SecurityPolicies.DriverPortal, policy => policy.RequireRole(SecurityRoles.Driver)).AddPolicy(SecurityPolicies.CustomerPortal, policy => policy.RequireRole(SecurityRoles.Customer));
         builder.Services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -156,6 +158,8 @@ public static class Program
         builder.Services.AddScoped<IDriverShiftService, DriverShiftService>();
         builder.Services.AddScoped<IDriverEarningsService, DriverEarningsService>();
         builder.Services.AddScoped<IDriverDocumentService, DriverDocumentService>();
+        builder.Services.AddScoped<ICustomerIdentityResolver, CustomerIdentityResolver>();
+        builder.Services.AddScoped<IPaymentGateway, UnconfiguredPaymentGateway>();
         builder.Services.AddHostedService<IdentityBootstrapper>();
         configureServices?.Invoke(builder.Services);
 
@@ -216,6 +220,7 @@ public static class Program
         app.MapWorkflowEndpoints();
         app.MapMapEndpoints();
         app.MapDriverPortalEndpoints();
+        app.MapCustomerPlatformEndpoints();
         app.MapHub<DispatchHub>("/hubs/dispatch").RequireAuthorization(SecurityPolicies.DispatchOperations);
         app.MapHub<JourneyHub>("/hubs/journeys").RequireAuthorization(SecurityPolicies.ErpAccess);
 

@@ -9,4 +9,5 @@ public sealed class ApplicationUser : IdentityUser<Guid>
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? LastLoginAt { get; set; }
     public Guid? DriverId { get; set; }
+    public Guid? CustomerId { get; set; }
 }

@@ -41,4 +41,5 @@ public class Company
     public ICollection<DriverShift> DriverShifts { get; set; } = [];
     public ICollection<DriverJobDecline> DriverJobDeclines { get; set; } = [];
     public ICollection<DriverVehicleIssue> DriverVehicleIssues { get; set; } = [];
+    public ICollection<CustomerAddress> CustomerAddresses { get; set; } = [];
 }

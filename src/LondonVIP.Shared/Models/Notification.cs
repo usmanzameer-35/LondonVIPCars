@@ -24,5 +24,5 @@ public enum NotificationRecipientType { Customer, Driver, CorporateAccount, User
 public enum NotificationType
 {
     BookingCreated,BookingConfirmed,BookingCancelled,DriverAssigned,DriverUnassigned,DriverEnRoute,DriverArrived,PassengerOnboard,BookingCompleted,NoShow,UnableToComplete,
-    QuoteCreated,QuoteExpiresSoon,QuoteAccepted,QuoteConverted,QuoteCancelled,InvoiceGenerated,PaymentReceived,PaymentReminder
+    QuoteCreated,QuoteExpiresSoon,QuoteAccepted,QuoteConverted,QuoteCancelled,InvoiceGenerated,PaymentReceived,PaymentReminder,SystemAlert,BookingAmended,PaymentFailed,ReceiptAvailable
 }

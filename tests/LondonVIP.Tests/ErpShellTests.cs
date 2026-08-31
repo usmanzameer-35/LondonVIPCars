@@ -50,7 +50,7 @@ public class ErpShellTests
         {
             var html = await client.GetStringAsync("/customer-portal");
             Assert.Contains("Your journeys, in one place", html);
-            Assert.Contains("Customer account", html);
+            Assert.Contains("Book a journey", html);
             Assert.Contains("London VIP Cars customer portal", html);
             Assert.DoesNotContain("Operations ERP", html);
         });

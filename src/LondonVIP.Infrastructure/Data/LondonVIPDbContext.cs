@@ -49,6 +49,9 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
     public DbSet<DriverShift> DriverShifts => Set<DriverShift>();
     public DbSet<DriverJobDecline> DriverJobDeclines => Set<DriverJobDecline>();
     public DbSet<DriverVehicleIssue> DriverVehicleIssues => Set<DriverVehicleIssue>();
+    public DbSet<CustomerAddress> CustomerAddresses => Set<CustomerAddress>();
+    public DbSet<CustomerPreferences> CustomerPreferences => Set<CustomerPreferences>();
+    public DbSet<CustomerAccountActivity> CustomerAccountActivities => Set<CustomerAccountActivity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -59,6 +62,8 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
             entity.HasOne<Company>().WithMany().HasForeignKey(user => user.CompanyId).OnDelete(DeleteBehavior.Restrict);
             entity.HasIndex(user => new { user.CompanyId, user.DriverId }).IsUnique().HasFilter("[DriverId] IS NOT NULL");
             entity.HasOne<Driver>().WithMany().HasForeignKey(user => user.DriverId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(user => new { user.CompanyId, user.CustomerId }).IsUnique().HasFilter("[CustomerId] IS NOT NULL");
+            entity.HasOne<Customer>().WithMany().HasForeignKey(user => user.CustomerId).OnDelete(DeleteBehavior.Restrict);
         });
         modelBuilder.Entity<SecurityAuditEvent>(entity =>
         {
@@ -273,6 +278,22 @@ public class LondonVIPDbContext(DbContextOptions<LondonVIPDbContext> options) : 
             entity.HasOne(x => x.Driver).WithMany().HasForeignKey(x => x.DriverId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(x => x.Vehicle).WithMany().HasForeignKey(x => x.VehicleId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(x => x.Booking).WithMany().HasForeignKey(x => x.BookingId).OnDelete(DeleteBehavior.SetNull);
+        });
+        modelBuilder.Entity<CustomerAddress>(entity =>
+        {
+            entity.Property(x => x.Label).HasMaxLength(80); entity.Property(x => x.AddressLine1).HasMaxLength(250); entity.Property(x => x.AddressLine2).HasMaxLength(250); entity.Property(x => x.City).HasMaxLength(100); entity.Property(x => x.Postcode).HasMaxLength(20);
+            entity.HasIndex(x => new { x.CompanyId, x.CustomerId, x.Label });
+            entity.HasOne(x => x.Company).WithMany(x => x.CustomerAddresses).HasForeignKey(x => x.CompanyId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Customer).WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<CustomerPreferences>(entity =>
+        {
+            entity.HasKey(x => x.CustomerId); entity.Property(x => x.EmergencyContactName).HasMaxLength(150); entity.Property(x => x.EmergencyContactPhone).HasMaxLength(30); entity.Property(x => x.Language).HasMaxLength(10);
+            entity.HasIndex(x => x.CompanyId); entity.HasOne(x => x.Customer).WithOne().HasForeignKey<CustomerPreferences>(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<CustomerAccountActivity>(entity =>
+        {
+            entity.Property(x => x.Action).HasMaxLength(100); entity.Property(x => x.IpAddress).HasMaxLength(64); entity.HasIndex(x => new { x.CompanyId, x.CustomerId, x.OccurredAt }); entity.HasOne(x => x.Customer).WithMany().HasForeignKey(x => x.CustomerId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Company>(entity =>

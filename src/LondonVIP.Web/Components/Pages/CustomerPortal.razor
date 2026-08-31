@@ -10,13 +10,11 @@
 <PageTitle>Customer Portal | London VIP Cars</PageTitle>
 
 <div class="portal-page">
-    <header class="welcome"><div><span>Customer workspace</span><h1>Your journeys, in one place</h1><p>Review live booking status and your invoice and payment records.</p></div>
-        <label><span>Customer account</span><select value="@SelectedCustomerId" @onchange="SelectCustomerAsync"><option value="">Select a customer</option>@foreach (var customer in Customers){<option value="@customer.Id">@customer.FullName</option>}</select></label>
-    </header>
+    <header class="welcome"><div><span>Customer workspace</span><h1>Your journeys, in one place</h1><p>Review live booking status and your invoice and payment records.</p></div><a class="primary-action" href="/book">Book a journey</a></header>
 
     @if (Loading) { <div class="portal-state">Loading your travel account...</div> }
     else if (!string.IsNullOrEmpty(Error)) { <div class="portal-state error" role="alert">@Error</div> }
-    else if (Dashboard is null) { <div class="portal-state"><h2>Select a customer account</h2><p>This internal foundation uses the current tenant's customer records until customer login identity mapping is introduced.</p></div> }
+    else if (Dashboard is null) { <div class="portal-state"><h2>Customer account unavailable</h2><p>Your login is not linked to an active customer profile.</p></div> }
     else
     {
         <section class="identity"><div><span>Welcome back</span><h2>@Dashboard.CustomerName</h2><p>@Dashboard.Email · @Dashboard.Phone</p></div><div class="summary"><article><strong>@Dashboard.Bookings.Count</strong><span>Journeys</span></article><article><strong>@Dashboard.Invoices.Count</strong><span>Invoices</span></article><article><strong>@Dashboard.Payments.Count</strong><span>Payments</span></article></div></section>
@@ -64,17 +62,17 @@
     private string Tab { get; set; } = "bookings";
     private bool Loading { get; set; } = true;
     private string? Error { get; set; }
-    protected override async Task OnInitializedAsync(){try{Customers=await Client().GetFromJsonAsync<List<CustomerPortalCustomerDto>>("api/customer-portal/customers")??[];}catch{Error="The customer portal could not be loaded. Make sure the API is running and your account has access.";}finally{Loading=false;}}
+    protected override async Task OnInitializedAsync(){try{var dashboard=Client().GetFromJsonAsync<CustomerPortalDashboardDto>("api/customer/dashboard");var quotes=Client().GetFromJsonAsync<List<QuotationListItemDto>>("api/customer/quotes");var notifications=Client().GetFromJsonAsync<List<NotificationDto>>("api/customer/notifications");await Task.WhenAll(dashboard,quotes,notifications);Dashboard=dashboard.Result;SelectedCustomerId=Dashboard?.CustomerId;Quotes=quotes.Result??[];Notifications=notifications.Result??[];}catch{Error="The customer portal could not be loaded. Make sure the API is running and your account has access.";}finally{Loading=false;}}
     private async Task SelectCustomerAsync(ChangeEventArgs args){if(!Guid.TryParse(args.Value?.ToString(),out var id)){SelectedCustomerId=null;Dashboard=null;Quotes=[];Notifications=[];return;}SelectedCustomerId=id;Loading=true;Error=null;try{var dashboard=Client().GetFromJsonAsync<CustomerPortalDashboardDto>($"api/customer-portal/{id}");var quotes=Client().GetFromJsonAsync<List<QuotationListItemDto>>($"api/customer-portal/{id}/quotes");var notifications=Client().GetFromJsonAsync<List<NotificationDto>>($"api/customer-portal/{id}/notifications");await Task.WhenAll(dashboard,quotes,notifications);Dashboard=dashboard.Result;Quotes=quotes.Result??[];Notifications=notifications.Result??[];}catch{Error="This customer account could not be loaded.";}finally{Loading=false;}}
-    private async Task OpenBookingAsync(Guid bookingId){if(SelectedCustomerId is not {} customerId)return;try{BookingDetail=await Client().GetFromJsonAsync<CustomerPortalBookingDetailDto>($"api/customer-portal/{customerId}/bookings/{bookingId}");}catch{Error="The booking details could not be loaded.";}}
+    private async Task OpenBookingAsync(Guid bookingId){try{BookingDetail=await Client().GetFromJsonAsync<CustomerPortalBookingDetailDto>($"api/customer/bookings/{bookingId}");}catch{Error="The booking details could not be loaded.";}}
     private void ShowBookings()=>Tab="bookings";
     private void ShowQuotes()=>Tab="quotes";
     private void ShowInvoices()=>Tab="invoices";
     private void ShowPayments()=>Tab="payments";
     private void ShowMessages()=>Tab="messages";
-    private async Task AcceptQuoteAsync(Guid id){if(SelectedCustomerId is not {} customerId)return;using var response=await Client().PostAsync($"api/customer-portal/{customerId}/quotes/{id}/accept",null);if(response.IsSuccessStatusCode)await ReloadQuotesAsync(customerId);else Error="The quotation could not be accepted.";}
-    private async Task ConvertQuoteAsync(Guid id){if(SelectedCustomerId is not {} customerId)return;using var response=await Client().PostAsync($"api/customer-portal/{customerId}/quotes/{id}/convert",null);if(response.IsSuccessStatusCode){await ReloadQuotesAsync(customerId);Dashboard=await Client().GetFromJsonAsync<CustomerPortalDashboardDto>($"api/customer-portal/{customerId}");ShowBookings();}else Error="Accept the active quotation before creating a booking.";}
-    private async Task ReloadQuotesAsync(Guid customerId)=>Quotes=await Client().GetFromJsonAsync<List<QuotationListItemDto>>($"api/customer-portal/{customerId}/quotes")??[];
+    private Task AcceptQuoteAsync(Guid id)=>ConvertQuoteAsync(id);
+    private async Task ConvertQuoteAsync(Guid id){using var response=await Client().PostAsync($"api/customer/quotes/{id}/convert",null);if(response.IsSuccessStatusCode){await ReloadQuotesAsync();Dashboard=await Client().GetFromJsonAsync<CustomerPortalDashboardDto>("api/customer/dashboard");ShowBookings();}else Error="The active quotation could not be converted into a booking.";}
+    private async Task ReloadQuotesAsync()=>Quotes=await Client().GetFromJsonAsync<List<QuotationListItemDto>>("api/customer/quotes")??[];
     private HttpClient Client()=>HttpClientFactory.CreateClient("LondonVIP.Api");
     private static string Display(string value)=>System.Text.RegularExpressions.Regex.Replace(value,"([a-z])([A-Z])","$1 $2");
     private static string StatusClass(string value)=>value.ToLowerInvariant();
