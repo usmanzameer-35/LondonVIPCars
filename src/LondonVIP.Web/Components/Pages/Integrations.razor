@@ -1,0 +1,50 @@
+@page "/erp/integrations"
+@attribute [Authorize]
+@layout AdminLayout
+@rendermode InteractiveServer
+@using LondonVIP.Shared.Integrations
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Integrations | London VIP Cars ERP</PageTitle>
+<div class="integrations">
+    <header class="page-head"><div><span>Platform administration</span><h1>Integration Centre</h1><p>Provider-neutral readiness, health and diagnostics. No live providers are connected.</p></div><button @onclick="LoadAsync" disabled="@Loading">Refresh health</button></header>
+    @if (Loading) { <p class="state">Loading integration status…</p> }
+    else if (Dashboard is null) { <p class="state error">@Error</p> }
+    else
+    {
+        <section class="metrics">
+            <article><strong>@Dashboard.Providers.Count</strong><span>Providers</span></article>
+            <article><strong>@Dashboard.Health.Count(x => x.State == IntegrationHealthState.Healthy)</strong><span>Healthy</span></article>
+            <article><strong>@Dashboard.PendingWebhooks</strong><span>Webhook queue</span></article>
+            <article><strong>@Dashboard.FailedWebhooks</strong><span>Failed deliveries</span></article>
+        </section>
+        <nav aria-label="Integration sections">@foreach (var tab in Tabs) { <button class="@(Tab == tab ? "active" : null)" @onclick="() => Tab = tab">@tab</button> }</nav>
+        <section class="panel">
+            <header><div><h2>@Tab</h2><p>Credentials are masked and never returned by this page.</p></div></header>
+            @foreach (var provider in FilteredProviders)
+            {
+                var health = Dashboard.Health.First(x => x.Key == provider.Key);
+                <article class="provider"><div><strong>@provider.DisplayName</strong><span>@provider.Category · @(provider.IsConfigured ? "Configured" : "Not configured")</span></div><span class="health @health.State.ToString().ToLowerInvariant()">@health.State</span><small>@health.Message</small><button @onclick="() => TestAsync(provider.Key)">Test</button></article>
+            }
+            @if (!FilteredProviders.Any()) { <p class="state">No providers in this section.</p> }
+        </section>
+        @if (!string.IsNullOrWhiteSpace(Feedback)) { <p class="state">@Feedback</p> }
+    }
+</div>
+
+<style>
+.integrations{display:grid;gap:1rem}.page-head,.panel>header,.provider{display:flex;align-items:center;gap:1rem}.page-head{justify-content:space-between}.page-head h1{font:clamp(2rem,4vw,3rem) Georgia,serif;margin:.2rem 0}.page-head span{color:#986b26;text-transform:uppercase;font-size:.7rem}.integrations button{border:1px solid #bfd0ca;border-radius:.55rem;background:#fff;color:#17473e;padding:.6rem .8rem}.metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:.7rem}.metrics article,.panel,.state{background:#fff;border:1px solid #dfe7e4;border-radius:.8rem;padding:1rem}.metrics strong,.metrics span,.provider strong,.provider span{display:block}.metrics strong{font:1.7rem Georgia,serif}.metrics span,.provider span,.provider small,.panel p{color:#71817d;font-size:.72rem}.integrations nav{display:flex;gap:.4rem;overflow:auto}.integrations nav .active{background:#17473e;color:#fff}.provider{border-top:1px solid #edf1ef;padding:.8rem 0}.provider>div{flex:1}.provider small{max-width:22rem}.health{border-radius:2rem;padding:.3rem .55rem;background:#edf1ef}.health.healthy{background:#daf2e6;color:#17603d}.health.unavailable{background:#fee2e2;color:#991b1b}.error{color:#991b1b}@@media(min-width:800px){.metrics{grid-template-columns:repeat(4,1fr)}}@@media(max-width:650px){.page-head,.provider{align-items:flex-start;flex-direction:column}.provider small{max-width:none}}
+</style>
+
+@code {
+    private static readonly string[] Tabs = ["Providers", "Payments", "Maps", "Communications", "Flights", "Storage", "PDF", "Secrets", "Health", "Webhooks", "Rate Limits", "Retry Queue"];
+    private IntegrationDashboardDto? Dashboard;
+    private bool Loading = true;
+    private string Tab = "Providers";
+    private string? Error;
+    private string? Feedback;
+    private IEnumerable<ProviderDescriptor> FilteredProviders => Dashboard?.Providers.Where(x => Tab == "Providers" || Tab == "Health" || Tab == "Secrets" || Tab == "Webhooks" || Tab == "Rate Limits" || Tab == "Retry Queue" || x.Category.ToString().Equals(Tab, StringComparison.OrdinalIgnoreCase) || (Tab == "PDF" && x.Category == IntegrationCategory.Pdf)) ?? [];
+    protected override Task OnInitializedAsync() => LoadAsync();
+    private async Task LoadAsync() { Loading = true; Error = null; try { Dashboard = await HttpClientFactory.CreateClient("LondonVIP.Api").GetFromJsonAsync<IntegrationDashboardDto>("api/integrations"); } catch { Error = "Integration status could not be loaded."; } finally { Loading = false; } }
+    private async Task TestAsync(string key) { var response = await HttpClientFactory.CreateClient("LondonVIP.Api").PostAsJsonAsync("api/integrations/connections/test", new ConnectionTestRequest(key)); var result = await response.Content.ReadFromJsonAsync<ConnectionTestResult>(); Feedback = result?.Message ?? "Connection test failed."; }
+}
