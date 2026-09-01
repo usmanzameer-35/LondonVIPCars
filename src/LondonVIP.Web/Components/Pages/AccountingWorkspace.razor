@@ -1,0 +1,26 @@
+@page "/erp/finance"
+@page "/erp/bank"
+@page "/erp/expenses"
+@page "/erp/vat"
+@page "/erp/journals"
+@page "/erp/reports"
+@page "/erp/budgets"
+@page "/erp/suppliers"
+@page "/erp/corporate-finance"
+@page "/erp/driver-payments"
+@attribute [Authorize(Roles="Finance,Admin,SuperAdmin")]
+@layout AdminLayout
+@rendermode InteractiveServer
+@using System.Text.Json
+@using LondonVIP.Shared.Accounting
+@inject IHttpClientFactory Clients
+@inject NavigationManager Navigation
+<PageTitle>@Title | London VIP Cars ERP</PageTitle>
+<main class="accounting"><header><div><span>Finance &amp; accounting</span><h1>@Title</h1><p>Tenant-scoped statutory, operational and management accounting.</p></div><button @onclick="Load">Refresh</button></header>
+@if(Loading){<p class="state">Loading finance records…</p>}else if(Error is not null){<p class="state error" role="alert">@Error</p>}else{
+<section class="finance-kpis"><article><span>Receivables</span><strong>@Data?.Receivables.ToString("C")</strong></article><article><span>Payables</span><strong>@Data?.Payables.ToString("C")</strong></article><article><span>Revenue</span><strong>@Data?.Revenue.ToString("C")</strong></article><article><span>Expenses</span><strong>@Data?.Expenses.ToString("C")</strong></article><article><span>VAT due</span><strong>@Data?.VatDue.ToString("C")</strong></article></section>
+<nav aria-label="Finance modules">@foreach(var item in Modules){<a class="@(Path==item.Route?"active":null)" href="@item.Route">@item.Label</a>}</nav>
+<section class="records"><header><h2>@Title records</h2><span>@Rows.Count records</span></header>@if(Rows.Count==0){<p class="state">No finance records exist for this tenant.</p>}@foreach(var row in Rows){<article><pre>@JsonSerializer.Serialize(row,Pretty)</pre></article>}</section>}
+</main>
+<style>.accounting{display:grid;gap:1.1rem;color:#173f36}.accounting>header,.records>header{display:flex;justify-content:space-between;align-items:end;gap:1rem}.accounting header>div>span{text-transform:uppercase;letter-spacing:.12em;color:#987334;font-size:.72rem}.accounting h1{font:2.2rem Georgia,serif;margin:.25rem 0}.accounting button{border:0;border-radius:.6rem;padding:.75rem 1rem;background:#173f36;color:#fff}.finance-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:.7rem}.finance-kpis article,.records{padding:1rem;border:1px solid #dce5e2;border-radius:.9rem;background:#fff}.finance-kpis span{display:block;color:#687b75;font-size:.75rem}.finance-kpis strong{font-size:1.35rem}.accounting nav{display:flex;gap:.35rem;overflow:auto}.accounting nav a{white-space:nowrap;padding:.55rem .8rem;border-radius:2rem;background:#e7efec;color:#173f36;text-decoration:none;font-size:.78rem}.accounting nav a.active{background:#173f36;color:#fff}.records article{border-top:1px solid #edf1ef;padding:.75rem}.records pre{white-space:pre-wrap;font:12px/1.45 system-ui;color:#425b53}.state{text-align:center;padding:2rem;color:#687b75}.error{color:#9a302c}@@media(max-width:900px){.finance-kpis{grid-template-columns:repeat(2,1fr)}}@@media(max-width:540px){.finance-kpis{grid-template-columns:1fr}.accounting>header{align-items:start;flex-direction:column}}</style>
+@code{static readonly JsonSerializerOptions Pretty=new(){WriteIndented=true};static readonly(string Label,string Route,string Endpoint)[]Modules=[("Overview","/erp/finance",""),("Accounts","/erp/accounts","accounts"),("Invoices","/erp/invoices","invoices"),("Payments","/erp/payments","payments"),("Bank","/erp/bank","bank/accounts"),("Expenses","/erp/expenses","expenses"),("VAT","/erp/vat","vat"),("Journals","/erp/journals","journals"),("Reports","/erp/reports","reports/profit-loss"),("Budgets","/erp/budgets","budgets"),("Suppliers","/erp/suppliers","suppliers"),("Corporate","/erp/corporate-finance",""),("Driver payments","/erp/driver-payments","driver-settlements")];FinanceDashboardDto?Data;List<JsonElement>Rows=[];bool Loading=true;string?Error;string Path=>"/"+Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].Trim('/');string Title=>Modules.FirstOrDefault(x=>x.Route==Path).Label??"Finance";protected override Task OnInitializedAsync()=>Load();async Task Load(){Loading=true;try{var c=Clients.CreateClient("LondonVIP.Api");Data=await c.GetFromJsonAsync<FinanceDashboardDto>("api/finance");var endpoint=Modules.FirstOrDefault(x=>x.Route==Path).Endpoint;if(endpoint is "vat" or "reports/profit-loss"){var now=DateOnly.FromDateTime(DateTime.UtcNow);endpoint+=$"?from={now.AddMonths(-1):yyyy-MM-dd}&to={now:yyyy-MM-dd}";}Rows=string.IsNullOrEmpty(endpoint)?[]:endpoint is "invoices" or "payments"?[]:await c.GetFromJsonAsync<List<JsonElement>>($"api/finance/{endpoint}")??[];Error=null;}catch{Error="Finance data could not be loaded.";}finally{Loading=false;}}}

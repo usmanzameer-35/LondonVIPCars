@@ -31,6 +31,8 @@ using LondonVIP.Infrastructure.Customers;
 using LondonVIP.Shared.CustomerPortal;
 using LondonVIP.Infrastructure.Growth;
 using LondonVIP.Shared.Growth;
+using LondonVIP.Infrastructure.Accounting;
+using LondonVIP.Shared.Accounting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
@@ -203,6 +205,9 @@ public static class Program
         builder.Services.AddScoped<IPromotionEngine, PromotionEngine>();
         builder.Services.AddScoped<IReferralService, ReferralService>();
         builder.Services.AddScoped<ILoyaltyService, LoyaltyService>();
+        builder.Services.AddScoped<IJournalService, JournalService>();
+        builder.Services.AddScoped<IAccountingReportService, AccountingReportService>();
+        builder.Services.AddScoped<IDriverSettlementService, DriverSettlementService>();
         builder.Services.AddScoped<IGeocodingProvider>(sp => sp.GetRequiredService<GoogleMapsPlatformProvider>());
         builder.Services.AddScoped<IRoutingProvider>(sp => sp.GetRequiredService<GoogleMapsPlatformProvider>());
         builder.Services.AddScoped<IDistanceMatrixProvider>(sp => sp.GetRequiredService<GoogleMapsPlatformProvider>());
@@ -287,6 +292,7 @@ public static class Program
         app.MapIntegrationEndpoints();
         app.MapCrmEndpoints();
         app.MapGrowthEndpoints();
+        app.MapAccountingEndpoints();
         app.MapHub<DispatchHub>("/hubs/dispatch").RequireAuthorization(SecurityPolicies.DispatchOperations);
         app.MapHub<JourneyHub>("/hubs/journeys").RequireAuthorization(SecurityPolicies.ErpAccess);
 
