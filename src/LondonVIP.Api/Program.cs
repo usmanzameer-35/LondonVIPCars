@@ -208,6 +208,17 @@ public static class Program
         builder.Services.AddScoped<IJournalService, JournalService>();
         builder.Services.AddScoped<IAccountingReportService, AccountingReportService>();
         builder.Services.AddScoped<IDriverSettlementService, DriverSettlementService>();
+        builder.Services.AddScoped<ICreditNoteService, CreditNoteService>();
+        builder.Services.AddScoped<IRecurringInvoiceService, RecurringInvoiceService>();
+        builder.Services.AddScoped<ISupplierPaymentService, SupplierPaymentService>();
+        builder.Services.AddScoped<IBankImportService, BankImportService>();
+        builder.Services.AddScoped<IFiscalPeriodService, FiscalPeriodService>();
+        builder.Services.AddScoped<IFinancialStatementService, FinancialStatementService>();
+        builder.Services.AddSingleton<IPayrollExportProvider, CsvPayrollExportProvider>();
+        builder.Services.AddScoped<IAutomaticJournalService, AutomaticJournalService>();
+        builder.Services.AddScoped<IBankReconciliationService, BankReconciliationService>();
+        builder.Services.AddScoped<IVatSubmissionService, VatSubmissionService>();
+        builder.Services.AddScoped<IFinanceAutomationService, FinanceAutomationService>();
         builder.Services.AddSingleton<ISocialProviderRegistry, SocialProviderRegistry>();
         builder.Services.AddScoped<ISocialOperationsService, SocialOperationsService>();
         builder.Services.AddScoped<INewsletterOptInService, NewsletterOptInService>();

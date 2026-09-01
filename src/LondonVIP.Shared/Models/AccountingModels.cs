@@ -19,7 +19,7 @@ public sealed class LedgerAccount
 public sealed class FiscalYear
 {
     public Guid Id { get; set; } public Guid CompanyId { get; set; } public string Name { get; set; } = string.Empty; public DateOnly StartsOn { get; set; } public DateOnly EndsOn { get; set; }
-    public bool IsClosed { get; set; } public DateTimeOffset CreatedAt { get; set; } public ICollection<AccountingPeriod> Periods { get; set; } = [];
+    public bool IsClosed { get; set; } public DateTimeOffset? ClosedAt { get; set; } public Guid? ClosingJournalId { get; set; } public DateTimeOffset CreatedAt { get; set; } public ICollection<AccountingPeriod> Periods { get; set; } = [];
 }
 public sealed class AccountingPeriod
 {
@@ -80,7 +80,7 @@ public sealed class VatReturn
 {
     public Guid Id { get; set; } public Guid CompanyId { get; set; } public DateOnly PeriodStart { get; set; } public DateOnly PeriodEnd { get; set; }
     public decimal OutputVat { get; set; } public decimal InputVat { get; set; } public decimal VatDue { get; set; } public string Status { get; set; } = "Draft";
-    public DateTimeOffset CreatedAt { get; set; } public DateTimeOffset? SubmittedAt { get; set; }
+    public bool IsLocked { get; set; } public string? ProviderReference { get; set; } public DateTimeOffset CreatedAt { get; set; } public DateTimeOffset? SubmittedAt { get; set; }
 }
 public sealed class Budget
 {

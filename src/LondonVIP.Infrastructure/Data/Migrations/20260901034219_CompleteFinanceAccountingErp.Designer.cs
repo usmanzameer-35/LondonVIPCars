@@ -4,6 +4,7 @@ using LondonVIP.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace LondonVIP.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(LondonVIPDbContext))]
-    partial class LondonVIPDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260901034219_CompleteFinanceAccountingErp")]
+    partial class CompleteFinanceAccountingErp
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -129,11 +132,6 @@ namespace LondonVIP.Infrastructure.Data.Migrations
                     b.Property<Guid>("CompanyId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("CorrelationId")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("datetimeoffset");
 
@@ -150,19 +148,12 @@ namespace LondonVIP.Infrastructure.Data.Migrations
                     b.Property<Guid>("JournalId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid?>("ReversalJournalId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<Guid>("SourceId")
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
 
                     b.HasIndex("JournalId");
-
-                    b.HasIndex("ReversalJournalId");
-
-                    b.HasIndex("CompanyId", "CorrelationId");
 
                     b.HasIndex("CompanyId", "EventType", "IdempotencyKey")
                         .IsUnique();
@@ -659,69 +650,6 @@ namespace LondonVIP.Infrastructure.Data.Migrations
                     b.HasIndex("CompanyId", "ReconciliationStatus", "Amount");
 
                     b.ToTable("BankTransactions");
-                });
-
-            modelBuilder.Entity("LondonVIP.Shared.Models.BankTransactionMatch", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal>("Amount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<Guid>("BankTransactionId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("CompanyId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("CorrelationId")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid?>("LedgerAccountId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("MatchType")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<Guid?>("PaymentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset?>("ReversedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<Guid?>("SupplierInvoiceId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BankTransactionId");
-
-                    b.HasIndex("LedgerAccountId");
-
-                    b.HasIndex("PaymentId");
-
-                    b.HasIndex("SupplierInvoiceId");
-
-                    b.HasIndex("CompanyId", "CorrelationId");
-
-                    b.HasIndex("CompanyId", "BankTransactionId", "Status");
-
-                    b.ToTable("BankTransactionMatches");
                 });
 
             modelBuilder.Entity("LondonVIP.Shared.Models.BlogArticle", b =>
@@ -4991,57 +4919,6 @@ namespace LondonVIP.Infrastructure.Data.Migrations
                     b.ToTable("VatReturns");
                 });
 
-            modelBuilder.Entity("LondonVIP.Shared.Models.VatSubmission", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("CompanyId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("CorrelationId")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<string>("Error")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
-                    b.Property<string>("ProviderKey")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<string>("ProviderReference")
-                        .HasMaxLength(250)
-                        .HasColumnType("nvarchar(250)");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<DateTimeOffset?>("SubmittedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<Guid>("VatReturnId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("VatReturnId");
-
-                    b.HasIndex("CompanyId", "CorrelationId")
-                        .IsUnique();
-
-                    b.HasIndex("CompanyId", "VatReturnId", "CreatedAt");
-
-                    b.ToTable("VatSubmissions");
-                });
-
             modelBuilder.Entity("LondonVIP.Shared.Models.Vehicle", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5473,11 +5350,6 @@ namespace LondonVIP.Infrastructure.Data.Migrations
                         .HasForeignKey("JournalId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
-
-                    b.HasOne("LondonVIP.Shared.Models.Journal", null)
-                        .WithMany()
-                        .HasForeignKey("ReversalJournalId")
-                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("LondonVIP.Shared.Models.AccountingPeriod", b =>
@@ -5537,32 +5409,6 @@ namespace LondonVIP.Infrastructure.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("BankAccount");
-                });
-
-            modelBuilder.Entity("LondonVIP.Shared.Models.BankTransactionMatch", b =>
-                {
-                    b.HasOne("LondonVIP.Shared.Models.BankTransaction", "BankTransaction")
-                        .WithMany()
-                        .HasForeignKey("BankTransactionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("LondonVIP.Shared.Models.LedgerAccount", null)
-                        .WithMany()
-                        .HasForeignKey("LedgerAccountId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("LondonVIP.Shared.Models.Payment", null)
-                        .WithMany()
-                        .HasForeignKey("PaymentId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("LondonVIP.Shared.Models.SupplierInvoice", null)
-                        .WithMany()
-                        .HasForeignKey("SupplierInvoiceId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("BankTransaction");
                 });
 
             modelBuilder.Entity("LondonVIP.Shared.Models.Booking", b =>
@@ -6412,17 +6258,6 @@ namespace LondonVIP.Infrastructure.Data.Migrations
                         .WithMany()
                         .HasForeignKey("VatReturnId")
                         .OnDelete(DeleteBehavior.Restrict);
-                });
-
-            modelBuilder.Entity("LondonVIP.Shared.Models.VatSubmission", b =>
-                {
-                    b.HasOne("LondonVIP.Shared.Models.VatReturn", "VatReturn")
-                        .WithMany()
-                        .HasForeignKey("VatReturnId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("VatReturn");
                 });
 
             modelBuilder.Entity("LondonVIP.Shared.Models.Vehicle", b =>
