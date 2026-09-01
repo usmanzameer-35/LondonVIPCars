@@ -208,6 +208,12 @@ public static class Program
         builder.Services.AddScoped<IJournalService, JournalService>();
         builder.Services.AddScoped<IAccountingReportService, AccountingReportService>();
         builder.Services.AddScoped<IDriverSettlementService, DriverSettlementService>();
+        builder.Services.AddSingleton<ISocialProviderRegistry, SocialProviderRegistry>();
+        builder.Services.AddScoped<ISocialOperationsService, SocialOperationsService>();
+        builder.Services.AddScoped<INewsletterOptInService, NewsletterOptInService>();
+        builder.Services.AddScoped<IAnalyticsService, AnalyticsService>();
+        builder.Services.AddScoped<IAiMarketingService, AiMarketingService>();
+        builder.Services.AddScoped<ICampaignEngine, CampaignEngine>();
         builder.Services.AddScoped<IGeocodingProvider>(sp => sp.GetRequiredService<GoogleMapsPlatformProvider>());
         builder.Services.AddScoped<IRoutingProvider>(sp => sp.GetRequiredService<GoogleMapsPlatformProvider>());
         builder.Services.AddScoped<IDistanceMatrixProvider>(sp => sp.GetRequiredService<GoogleMapsPlatformProvider>());
