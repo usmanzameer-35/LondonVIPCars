@@ -1,6 +1,6 @@
 namespace LondonVIP.Shared.Models;
 
-public enum AccountingEventType { BookingCreated, BookingCancelled, InvoiceIssued, InvoicePaid, InvoiceWrittenOff, CreditNote, Refund, PaymentAllocation, ExpenseApproval, SupplierInvoice, SupplierPayment, DriverSettlement, BankReconciliation, VatAdjustment, ManualAdjustment }
+public enum AccountingEventType { BookingCreated, BookingCancelled, BookingCompleted, InvoiceIssued, InvoicePaid, InvoiceWrittenOff, CreditNote, Refund, PaymentAllocation, ExpenseApproval, SupplierInvoice, SupplierPayment, DriverSettlement, BankReconciliation, VatAdjustment, ManualAdjustment, RecurringInvoiceGeneration }
 public enum BankMatchStatus { Suggested, Reconciled, Reversed }
 public enum VatSubmissionStatus { Prepared, Validated, Submitted, Accepted, Rejected, ProviderNotConfigured }
 
@@ -35,4 +35,40 @@ public sealed class VatSubmission
     public string? Error { get; set; }
     public DateTimeOffset CreatedAt { get; set; }
     public DateTimeOffset? SubmittedAt { get; set; }
+}
+
+public sealed class AccountingPostingProfile
+{
+    public Guid Id { get; set; }
+    public Guid CompanyId { get; set; }
+    public string EventType { get; set; } = string.Empty;
+    public Guid DebitAccountId { get; set; }
+    public Guid CreditAccountId { get; set; }
+    public bool IsActive { get; set; } = true;
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+public sealed class FinanceRecordState
+{
+    public Guid Id { get; set; }
+    public Guid CompanyId { get; set; }
+    public string ResourceType { get; set; } = string.Empty;
+    public Guid ResourceId { get; set; }
+    public bool IsArchived { get; set; }
+    public bool IsDeleted { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+}
+
+public sealed class FinanceRecordHistory
+{
+    public Guid Id { get; set; }
+    public Guid CompanyId { get; set; }
+    public string ResourceType { get; set; } = string.Empty;
+    public Guid ResourceId { get; set; }
+    public string Action { get; set; } = string.Empty;
+    public string? BeforeJson { get; set; }
+    public string? AfterJson { get; set; }
+    public string CorrelationId { get; set; } = string.Empty;
+    public DateTimeOffset CreatedAt { get; set; }
 }

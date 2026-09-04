@@ -6,6 +6,7 @@ using LondonVIP.Infrastructure.Security;
 using Microsoft.EntityFrameworkCore;
 using LondonVIP.Infrastructure.Data;
 using LondonVIP.Shared.Notifications;
+using LondonVIP.Shared.Workflows;
 
 namespace LondonVIP.Api;
 
@@ -271,6 +272,7 @@ public static class PaymentEndpoints
         LondonVIPDbContext db,
         ICompanyContext company,
         IAuditService audit,
+        IBusinessEventPublisher events,
         CancellationToken cancellationToken)
     {
         var payment = await db.Payments.AsNoTracking()
@@ -340,6 +342,9 @@ public static class PaymentEndpoints
             "PaymentAllocated", "Payment", "Succeeded", SecurityEventSeverity.Information,
             $"Payment {payment.PaymentReference} allocated {request.Amount:C} to invoice {invoice.InvoiceNumber}.",
             "Payment", payment.Id.ToString(), company.CompanyId, cancellationToken);
+
+        await events.PublishAsync(new(BusinessEventTypes.PaymentAllocated, "PaymentAllocation", allocation.Id, System.Text.Json.JsonSerializer.Serialize(new { request.Amount }), allocation.Id.ToString()), cancellationToken);
+        if (invoice.Status == InvoiceStatus.Paid) await events.PublishAsync(new(BusinessEventTypes.InvoicePaid, "Invoice", invoice.Id, System.Text.Json.JsonSerializer.Serialize(new { invoice.TotalAmount }), invoice.Id.ToString()), cancellationToken);
 
         return Results.Created($"/api/payments/{payment.Id}/allocations/{allocation.Id}", 
             new { allocation.Id, allocation.Amount, invoice.Status });

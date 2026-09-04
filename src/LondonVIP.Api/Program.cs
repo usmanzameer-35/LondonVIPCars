@@ -219,6 +219,7 @@ public static class Program
         builder.Services.AddScoped<IBankReconciliationService, BankReconciliationService>();
         builder.Services.AddScoped<IVatSubmissionService, VatSubmissionService>();
         builder.Services.AddScoped<IFinanceAutomationService, FinanceAutomationService>();
+        builder.Services.AddScoped<IFinanceAdministrationService, FinanceAdministrationService>();
         builder.Services.AddSingleton<ISocialProviderRegistry, SocialProviderRegistry>();
         builder.Services.AddScoped<ISocialOperationsService, SocialOperationsService>();
         builder.Services.AddScoped<INewsletterOptInService, NewsletterOptInService>();

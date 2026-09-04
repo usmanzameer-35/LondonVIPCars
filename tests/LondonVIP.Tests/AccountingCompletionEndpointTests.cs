@@ -8,6 +8,8 @@ using LondonVIP.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using System.IO.Compression;
+using System.Text.Json;
+using LondonVIP.Shared.Workflows;
 
 namespace LondonVIP.Tests;
 
@@ -119,4 +121,66 @@ public sealed class AccountingCompletionEndpointTests
     }
 
     static LedgerAccount Account(Guid id, string code, LedgerAccountType type) => new() { Id = id, CompanyId = LondonVipCompany.Id, Code = code, Name = code, Type = type, AllowPosting = true, IsActive = true, CreatedAt = DateTimeOffset.UtcNow };
+
+    [Fact]
+    public async Task FinanceAdminCrudBulkLifecycleHistoryAndTenantIsolationWork()
+    {
+        await using var host = await TestApiHost.StartAsync();
+        var payload = JsonSerializer.SerializeToElement(new Supplier { SupplierNumber = "SUP-CLOSE-1", Name = "Closure Supplier", PaymentTermsDays = 30, IsActive = true });
+        using var createdResponse = await host.Client.PostAsJsonAsync("/api/finance/admin/suppliers", payload); Assert.Equal(HttpStatusCode.Created, createdResponse.StatusCode); var created = await createdResponse.Content.ReadFromJsonAsync<JsonElement>(); var id = created.GetProperty("id").GetGuid();
+        using var updated = await host.Client.PutAsJsonAsync($"/api/finance/admin/suppliers/{id}", JsonSerializer.SerializeToElement(new { Name = "Updated Supplier" })); Assert.Equal(HttpStatusCode.OK, updated.StatusCode);
+        var query = await host.Client.GetFromJsonAsync<FinanceAdminPage>("/api/finance/admin/suppliers?page=1&pageSize=25&descending=false&includeArchived=false"); Assert.Single(query!.Items); Assert.Equal("Updated Supplier", query.Items[0].GetProperty("name").GetString());
+        var bulk = new FinanceBulkRequest([id]); Assert.Equal(HttpStatusCode.OK, (await host.Client.PostAsJsonAsync("/api/finance/admin/suppliers/bulk/archive", bulk)).StatusCode); var hidden = await host.Client.GetFromJsonAsync<FinanceAdminPage>("/api/finance/admin/suppliers?page=1&pageSize=25&descending=false&includeArchived=false"); Assert.Empty(hidden!.Items);
+        Assert.Equal(HttpStatusCode.OK, (await host.Client.PostAsJsonAsync("/api/finance/admin/suppliers/bulk/restore", bulk)).StatusCode); Assert.Equal(HttpStatusCode.OK, (await host.Client.PostAsJsonAsync("/api/finance/admin/suppliers/bulk/delete", bulk)).StatusCode);
+        var history = await host.Client.GetFromJsonAsync<List<FinanceRecordHistory>>($"/api/finance/admin/suppliers/{id}/history"); Assert.Equal(5, history!.Count);
+    }
+
+    [Fact]
+    public async Task BusinessEventPostingProfileCreatesOneAutomaticTenantJournal()
+    {
+        await using var host = await TestApiHost.StartAsync(); var debit = Guid.NewGuid(); var credit = Guid.NewGuid();
+        await using (var scope = host.App.Services.CreateAsyncScope()) { var db = scope.ServiceProvider.GetRequiredService<LondonVIPDbContext>(); db.LedgerAccounts.AddRange(Account(debit, "1100", LedgerAccountType.Asset), Account(credit, "4100", LedgerAccountType.Revenue)); db.AccountingPostingProfiles.Add(new() { Id = Guid.NewGuid(), CompanyId = LondonVipCompany.Id, EventType = BusinessEventTypes.BookingCreated, DebitAccountId = debit, CreditAccountId = credit, IsActive = true, CreatedAt = DateTimeOffset.UtcNow, UpdatedAt = DateTimeOffset.UtcNow }); await db.SaveChangesAsync(); var publisher = scope.ServiceProvider.GetRequiredService<IBusinessEventPublisher>(); await publisher.PublishAsync(new(BusinessEventTypes.BookingCreated, "Booking", Guid.NewGuid(), "{\"totalFare\":75}", "posting-event-1")); await publisher.PublishAsync(new(BusinessEventTypes.BookingCreated, "Booking", Guid.NewGuid(), "{\"totalFare\":75}", "posting-event-1")); }
+        await using var result = host.App.Services.CreateAsyncScope(); var resultDb = result.ServiceProvider.GetRequiredService<LondonVIPDbContext>(); var journal = Assert.Single(await resultDb.Journals.Include(x => x.Entries).ToListAsync()); Assert.Equal(75m, journal.Entries.Sum(x => x.Debit)); Assert.Equal(75m, journal.Entries.Sum(x => x.Credit)); Assert.All(journal.Entries, x => Assert.Equal(LondonVipCompany.Id, x.CompanyId));
+    }
+
+    [Fact]
+    public async Task YearEndClosesProfitToRetainedEarningsAndCanReopen()
+    {
+        await using var host = await TestApiHost.StartAsync(); var revenue = Guid.NewGuid(); var expense = Guid.NewGuid(); var retained = Guid.NewGuid(); var yearId = Guid.NewGuid(); var period1 = Guid.NewGuid(); var period2 = Guid.NewGuid();
+        await using (var scope = host.App.Services.CreateAsyncScope()) { var db = scope.ServiceProvider.GetRequiredService<LondonVIPDbContext>(); var retainedAccount = Account(retained, "3200", LedgerAccountType.Equity); retainedAccount.Name = "Retained earnings"; db.LedgerAccounts.AddRange(Account(revenue, "4000", LedgerAccountType.Revenue), Account(expense, "5000", LedgerAccountType.Expense), retainedAccount); var year = new FiscalYear { Id = yearId, CompanyId = LondonVipCompany.Id, Name = "FY26", StartsOn = new(2026, 1, 1), EndsOn = new(2026, 12, 31), CreatedAt = DateTimeOffset.UtcNow, Periods = [new() { Id = period1, CompanyId = LondonVipCompany.Id, Name = "P1", StartsOn = new(2026, 1, 1), EndsOn = new(2026, 11, 30), Status = AccountingPeriodStatus.Closed, ClosedAt = DateTimeOffset.UtcNow }, new() { Id = period2, CompanyId = LondonVipCompany.Id, Name = "P2", StartsOn = new(2026, 12, 1), EndsOn = new(2026, 12, 31), Status = AccountingPeriodStatus.Open }] }; db.FiscalYears.Add(year); db.Journals.Add(new Journal { Id = Guid.NewGuid(), CompanyId = LondonVipCompany.Id, Reference = "FY26-ACTIVITY", JournalDate = new(2026, 6, 1), Description = "Activity", SourceType = "Manual", Status = JournalStatus.Posted, CreatedAt = DateTimeOffset.UtcNow, PostedAt = DateTimeOffset.UtcNow, Entries = [new() { Id = Guid.NewGuid(), CompanyId = LondonVipCompany.Id, LedgerAccountId = revenue, Description = "Revenue", Credit = 100 }, new() { Id = Guid.NewGuid(), CompanyId = LondonVipCompany.Id, LedgerAccountId = expense, Description = "Expense", Debit = 40 }, new() { Id = Guid.NewGuid(), CompanyId = LondonVipCompany.Id, LedgerAccountId = retained, Description = "Balance", Debit = 60 }] }); await db.SaveChangesAsync(); }
+        Assert.Equal(HttpStatusCode.OK, (await host.Client.PostAsync($"/api/finance/fiscal-years/{yearId}/close", null)).StatusCode); await using (var scope = host.App.Services.CreateAsyncScope()) { var db = scope.ServiceProvider.GetRequiredService<LondonVIPDbContext>(); var year = await db.FiscalYears.SingleAsync(x => x.Id == yearId); Assert.True(year.IsClosed); Assert.NotNull(year.ClosingJournalId); var closing = await db.Journals.Include(x => x.Entries).SingleAsync(x => x.Id == year.ClosingJournalId); Assert.Equal(closing.Entries.Sum(x => x.Debit), closing.Entries.Sum(x => x.Credit)); Assert.Contains(closing.Entries, x => x.LedgerAccountId == retained && x.Credit == 60); }
+        Assert.Equal(HttpStatusCode.OK, (await host.Client.PostAsync($"/api/finance/fiscal-years/{yearId}/reopen?correlationId=reopen-fy26", null)).StatusCode);
+        await using var reopenedScope = host.App.Services.CreateAsyncScope(); Assert.False(await reopenedScope.ServiceProvider.GetRequiredService<LondonVIPDbContext>().FiscalYears.Where(x => x.Id == yearId).Select(x => x.IsClosed).SingleAsync());
+    }
+
+    [Fact]
+    public async Task CompleteReportLibraryProducesPdfAndMultiSheetXlsx()
+    {
+        await using var host = await TestApiHost.StartAsync(); var today = DateOnly.FromDateTime(DateTime.UtcNow); string[] reports = ["balance-sheet", "profit-loss", "trial-balance", "cash-flow", "general-ledger", "journal-listing", "supplier-statement", "customer-statement", "driver-settlement", "vat-return", "expense-analysis", "revenue-analysis", "budget-report", "aged-debtors", "aged-creditors"];
+        foreach (var report in reports)
+        {
+            var pdf = await host.Client.GetByteArrayAsync($"/api/finance/reports/{report}/pdf?from={today.AddYears(-1):yyyy-MM-dd}&to={today:yyyy-MM-dd}"); Assert.StartsWith("%PDF-", System.Text.Encoding.ASCII.GetString(pdf, 0, Math.Min(5, pdf.Length)));
+            var xlsx = await host.Client.GetByteArrayAsync($"/api/finance/reports/export?report={report}&format=xlsx&from={today.AddYears(-1):yyyy-MM-dd}&to={today:yyyy-MM-dd}"); using var workbook = new ZipArchive(new MemoryStream(xlsx)); Assert.Contains(workbook.Entries, x => x.FullName == "xl/worksheets/sheet1.xml"); Assert.Contains(workbook.Entries, x => x.FullName == "xl/worksheets/sheet2.xml");
+        }
+    }
+
+    [Fact]
+    public async Task ComparativeAndProfitabilityReportsExportWithoutData()
+    {
+        await using var host = await TestApiHost.StartAsync(); var today = DateOnly.FromDateTime(DateTime.UtcNow); string[] reports = ["monthly-comparison", "year-comparison", "budget-comparison", "driver-profitability", "vehicle-profitability", "customer-profitability", "corporate-profitability"];
+        foreach (var report in reports) { var xlsx = await host.Client.GetByteArrayAsync($"/api/finance/reports/export?report={report}&format=xlsx&from={today.AddYears(-1):yyyy-MM-dd}&to={today:yyyy-MM-dd}"); using var workbook = new ZipArchive(new MemoryStream(xlsx)); Assert.Contains(workbook.Entries, x => x.FullName == "xl/worksheets/sheet2.xml"); }
+    }
+
+    [Fact]
+    public async Task SupplierCreditsContractsDocumentsAndBankTransfersAreTenantSafe()
+    {
+        await using var host = await TestApiHost.StartAsync(); var supplierId = Guid.NewGuid(); var from = Guid.NewGuid(); var to = Guid.NewGuid();
+        await using (var scope = host.App.Services.CreateAsyncScope()) { var db = scope.ServiceProvider.GetRequiredService<LondonVIPDbContext>(); db.Suppliers.Add(new Supplier { Id = supplierId, CompanyId = LondonVipCompany.Id, SupplierNumber = "SUP-FINAL", Name = "Final Supplier", IsActive = true, CreatedAt = DateTimeOffset.UtcNow }); db.BankAccounts.AddRange(new BankAccount { Id = from, CompanyId = LondonVipCompany.Id, Name = "Current", CurrencyCode = "GBP", IsActive = true }, new BankAccount { Id = to, CompanyId = LondonVipCompany.Id, Name = "Reserve", CurrencyCode = "GBP", IsActive = true }); await db.SaveChangesAsync(); }
+        var contract = JsonSerializer.SerializeToElement(new SupplierContract { SupplierId = supplierId, Reference = "CON-1", Title = "Supply agreement", StartsOn = DateOnly.FromDateTime(DateTime.UtcNow), Status = SupplierContractStatus.Active });
+        using var contractResponse = await host.Client.PostAsJsonAsync("/api/finance/admin/supplier-contracts", contract); Assert.Equal(HttpStatusCode.Created, contractResponse.StatusCode); var contractId = (await contractResponse.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+        using var documentResponse = await host.Client.PostAsJsonAsync("/api/finance/admin/supplier-documents", JsonSerializer.SerializeToElement(new SupplierDocument { SupplierId = supplierId, SupplierContractId = contractId, Category = "Contract", FileName = "contract.pdf", StoragePath = "suppliers/contract.pdf" })); Assert.Equal(HttpStatusCode.Created, documentResponse.StatusCode);
+        using var creditResponse = await host.Client.PostAsJsonAsync("/api/finance/admin/supplier-credits", JsonSerializer.SerializeToElement(new SupplierCredit { SupplierId = supplierId, Reference = "CR-1", CreditDate = DateOnly.FromDateTime(DateTime.UtcNow), NetAmount = 10, VatAmount = 2, TotalAmount = 12, Status = SupplierCreditStatus.Approved })); Assert.Equal(HttpStatusCode.Created, creditResponse.StatusCode);
+        using var transfer = await host.Client.PostAsJsonAsync("/api/finance/bank/transfers", new BankTransferRequest(from, to, DateOnly.FromDateTime(DateTime.UtcNow), 50, "TRF-1", "Reserve transfer")); Assert.Equal(HttpStatusCode.Created, transfer.StatusCode);
+        await using var result = host.App.Services.CreateAsyncScope(); var dbResult = result.ServiceProvider.GetRequiredService<LondonVIPDbContext>(); Assert.Single(await dbResult.SupplierContracts.ToListAsync()); Assert.Single(await dbResult.SupplierDocuments.ToListAsync()); Assert.Single(await dbResult.SupplierCredits.ToListAsync()); var entries = await dbResult.BankTransactions.Where(x => x.ImportedStatementReference != null).ToListAsync(); Assert.Equal(2, entries.Count); Assert.Equal(0, entries.Sum(x => x.Amount)); Assert.All(entries, x => Assert.Equal(LondonVipCompany.Id, x.CompanyId));
+    }
 }

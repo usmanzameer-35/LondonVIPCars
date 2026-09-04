@@ -4,6 +4,7 @@ using LondonVIP.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace LondonVIP.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(LondonVIPDbContext))]
-    partial class LondonVIPDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260901055815_CloseFinanceAccountingErp")]
+    partial class CloseFinanceAccountingErp
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -4843,178 +4846,6 @@ namespace LondonVIP.Infrastructure.Data.Migrations
                     b.ToTable("Suppliers");
                 });
 
-            modelBuilder.Entity("LondonVIP.Shared.Models.SupplierContract", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("CompanyId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<DateOnly?>("EndsOn")
-                        .HasColumnType("date");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
-
-                    b.Property<string>("Reference")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<DateOnly>("StartsOn")
-                        .HasColumnType("date");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("SupplierId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(250)
-                        .HasColumnType("nvarchar(250)");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<decimal?>("Value")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SupplierId");
-
-                    b.HasIndex("CompanyId", "Status", "EndsOn");
-
-                    b.HasIndex("CompanyId", "SupplierId", "Reference")
-                        .IsUnique();
-
-                    b.ToTable("SupplierContracts");
-                });
-
-            modelBuilder.Entity("LondonVIP.Shared.Models.SupplierCredit", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal>("AmountApplied")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<Guid>("CompanyId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<DateOnly>("CreditDate")
-                        .HasColumnType("date");
-
-                    b.Property<decimal>("NetAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("Reason")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<string>("Reference")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("SupplierId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("SupplierInvoiceId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<decimal>("TotalAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<decimal>("VatAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SupplierId");
-
-                    b.HasIndex("SupplierInvoiceId");
-
-                    b.HasIndex("CompanyId", "Status", "CreditDate");
-
-                    b.HasIndex("CompanyId", "SupplierId", "Reference")
-                        .IsUnique();
-
-                    b.ToTable("SupplierCredits");
-                });
-
-            modelBuilder.Entity("LondonVIP.Shared.Models.SupplierDocument", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Category")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<Guid>("CompanyId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<DateOnly?>("ExpiresOn")
-                        .HasColumnType("date");
-
-                    b.Property<string>("FileName")
-                        .IsRequired()
-                        .HasMaxLength(260)
-                        .HasColumnType("nvarchar(260)");
-
-                    b.Property<string>("StoragePath")
-                        .IsRequired()
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
-                    b.Property<Guid?>("SupplierContractId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("SupplierId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SupplierContractId");
-
-                    b.HasIndex("SupplierId");
-
-                    b.HasIndex("CompanyId", "ExpiresOn");
-
-                    b.HasIndex("CompanyId", "SupplierId", "Category");
-
-                    b.ToTable("SupplierDocuments");
-                });
-
             modelBuilder.Entity("LondonVIP.Shared.Models.SupplierInvoice", b =>
                 {
                     b.Property<Guid>("Id")
@@ -6670,53 +6501,6 @@ namespace LondonVIP.Infrastructure.Data.Migrations
                         .WithMany()
                         .HasForeignKey("CustomerId")
                         .OnDelete(DeleteBehavior.Restrict);
-                });
-
-            modelBuilder.Entity("LondonVIP.Shared.Models.SupplierContract", b =>
-                {
-                    b.HasOne("LondonVIP.Shared.Models.Supplier", "Supplier")
-                        .WithMany()
-                        .HasForeignKey("SupplierId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Supplier");
-                });
-
-            modelBuilder.Entity("LondonVIP.Shared.Models.SupplierCredit", b =>
-                {
-                    b.HasOne("LondonVIP.Shared.Models.Supplier", "Supplier")
-                        .WithMany()
-                        .HasForeignKey("SupplierId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("LondonVIP.Shared.Models.SupplierInvoice", "SupplierInvoice")
-                        .WithMany()
-                        .HasForeignKey("SupplierInvoiceId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("Supplier");
-
-                    b.Navigation("SupplierInvoice");
-                });
-
-            modelBuilder.Entity("LondonVIP.Shared.Models.SupplierDocument", b =>
-                {
-                    b.HasOne("LondonVIP.Shared.Models.SupplierContract", "SupplierContract")
-                        .WithMany()
-                        .HasForeignKey("SupplierContractId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("LondonVIP.Shared.Models.Supplier", "Supplier")
-                        .WithMany()
-                        .HasForeignKey("SupplierId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Supplier");
-
-                    b.Navigation("SupplierContract");
                 });
 
             modelBuilder.Entity("LondonVIP.Shared.Models.SupplierInvoice", b =>

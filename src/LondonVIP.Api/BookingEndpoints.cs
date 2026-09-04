@@ -48,7 +48,7 @@ public static class BookingEndpoints
         var alreadyExists = result.Outcome == InvoiceGenerationOutcome.AlreadyExists;
         await audit.WriteAsync(alreadyExists ? "BookingInvoiceAlreadyExists" : "BookingInvoiceCreated", "Invoice", "Succeeded", SecurityEventSeverity.Information,
             alreadyExists ? "Invoice already existed for booking." : "Invoice created from booking.", "Invoice", invoice.Id.ToString(), company.CompanyId, cancellationToken);
-        if(!alreadyExists){await notifications.QueueAsync(new(invoice.Customer?.Email??invoice.CustomerId?.ToString()??"finance",invoice.CustomerId.HasValue?NotificationRecipientType.Customer:NotificationRecipientType.CorporateAccount,NotificationType.InvoiceGenerated,"Invoice generated",$"Invoice {invoice.InvoiceNumber} has been generated.","invoice-generated",CorrelationId:invoice.Id.ToString()),cancellationToken);await events.PublishAsync(new(BusinessEventTypes.InvoiceCreated,"Invoice",invoice.Id,"{}",invoice.Id.ToString()),cancellationToken);}
+        if(!alreadyExists){await notifications.QueueAsync(new(invoice.Customer?.Email??invoice.CustomerId?.ToString()??"finance",invoice.CustomerId.HasValue?NotificationRecipientType.Customer:NotificationRecipientType.CorporateAccount,NotificationType.InvoiceGenerated,"Invoice generated",$"Invoice {invoice.InvoiceNumber} has been generated.","invoice-generated",CorrelationId:invoice.Id.ToString()),cancellationToken);await events.PublishAsync(new(BusinessEventTypes.InvoiceCreated,"Invoice",invoice.Id,System.Text.Json.JsonSerializer.Serialize(new{invoice.TotalAmount}),invoice.Id.ToString()),cancellationToken);}
         return Results.Json(ToInvoiceDetail(invoice), statusCode: alreadyExists ? StatusCodes.Status200OK : StatusCodes.Status201Created);
     }
 
@@ -147,7 +147,7 @@ public static class BookingEndpoints
         return Results.Ok(ToDetail(updated));
     }
 
-    private static async Task<IResult> UpdateStatusAsync(Guid id, BookingStatusUpdateDto request, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, INotificationService notifications, CancellationToken cancellationToken)
+    private static async Task<IResult> UpdateStatusAsync(Guid id, BookingStatusUpdateDto request, LondonVIPDbContext db, ICompanyContext company, IAuditService audit, INotificationService notifications, IBusinessEventPublisher events, CancellationToken cancellationToken)
     {
         if (!Enum.IsDefined(request.Status))
             return Results.ValidationProblem(new Dictionary<string, string[]> { ["status"] = ["Booking status is invalid."] });
@@ -160,6 +160,7 @@ public static class BookingEndpoints
         await db.SaveChangesAsync(cancellationToken);
         await audit.WriteAsync("BookingStatusChanged", "Booking", "Succeeded", SecurityEventSeverity.Information, $"Booking status changed to {booking.Status}.", "Booking", id.ToString(), company.CompanyId, cancellationToken);
         var type=booking.Status switch{BookingStatus.Confirmed=>NotificationType.BookingConfirmed,BookingStatus.Cancelled=>NotificationType.BookingCancelled,BookingStatus.DriverEnRoute=>NotificationType.DriverEnRoute,BookingStatus.DriverArrived=>NotificationType.DriverArrived,BookingStatus.PassengerOnBoard=>NotificationType.PassengerOnboard,BookingStatus.Completed=>NotificationType.BookingCompleted,BookingStatus.NoShow=>NotificationType.NoShow,BookingStatus.UnableToComplete=>NotificationType.UnableToComplete,_=>(NotificationType?)null};if(type.HasValue){var recipient=await db.Customers.Where(x=>x.Id==booking.CustomerId).Select(x=>x.Email).SingleAsync(cancellationToken);await notifications.QueueAsync(new(recipient,NotificationRecipientType.Customer,type.Value,$"Booking {booking.Status}",$"Booking {booking.BookingReference} is now {booking.Status}.",$"booking-{booking.Status.ToString().ToLowerInvariant()}",CorrelationId:id.ToString()),cancellationToken);}
+        var eventType=booking.Status switch{BookingStatus.Completed=>BusinessEventTypes.JourneyCompleted,BookingStatus.Cancelled=>BusinessEventTypes.BookingCancelled,_=>null};if(eventType is not null)await events.PublishAsync(new(eventType,"Booking",booking.Id,System.Text.Json.JsonSerializer.Serialize(new{booking.TotalFare}),booking.Id.ToString()),cancellationToken);
         return Results.Ok(new BookingStatusUpdateDto { Status = booking.Status });
     }
 
